@@ -1,1 +1,15 @@
 node_modules/
+
+# Environment files
+.env
+.env.example
+.env.*
+
+# Prisma generated
+/src/generated/prisma
+
+# Agent and AI folders
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
