@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,258 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  MANAGER
+  SELLER
+}
+
+enum StockLocationType {
+  HQ
+  WAREHOUSE
+  SELLER
+}
+
+enum StockMovementType {
+  RECEIPT
+  TRANSFER
+  SALE
+}
+
+enum PaymentMode {
+  CASH
+  BANK
+  PENDING
+}
+
+enum SaleStatus {
+  PENDING_APPROVAL
+  CONFIRMED
+  REJECTED
+}
+
+enum DeliveryChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String
+  email           String?  @unique
+  phone           String?  @unique
+  passwordHash    String
+  role            Role
+  active          Boolean  @default(true)
+  tokenVersion    Int      @default(0)
+  managerId       String?  @db.Uuid
+  manager         User?    @relation("ManagerSellers", fields: [managerId], references: [id])
+  sellers         User[]   @relation("ManagerSellers")
+  state           String?
+  district        String?
+  village         String?
+  // Keep the list small; business permissions remain validated in code.
+  permissions     String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  customers       Customer[] @relation("AssignedSeller")
+  customersAdded  Customer[] @relation("CustomerCreator")
+  sales           Sale[] @relation("SellerSales")
+  decisions       Sale[] @relation("SaleDecider")
+  stockLocation   StockLocation?
+  movements       StockMovement[]
+  notifications   Notification[]
+  resets          PasswordReset[]
+  payments        PaymentRecord[]
+
+  @@index([managerId])
+  @@index([role, active])
+}
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  customers Customer[]
+}
+
+model Customer {
+  id          String   @id @default(uuid()) @db.Uuid
+  shopName    String
+  contactName String
+  phone       String
+  email       String?
+  categoryId  String   @db.Uuid
+  category    Category @relation(fields: [categoryId], references: [id])
+  sellerId    String   @db.Uuid
+  seller      User     @relation("AssignedSeller", fields: [sellerId], references: [id])
+  createdById String   @db.Uuid
+  createdBy   User     @relation("CustomerCreator", fields: [createdById], references: [id])
+  state       String
+  district    String
+  village     String
+  photoPath   String?
+  latitude    Decimal? @db.Decimal(9, 6)
+  longitude   Decimal? @db.Decimal(9, 6)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  sales       Sale[]
+
+  @@index([sellerId])
+  @@index([state, district, village])
+  @@index([categoryId])
+}
+
+model StockLocation {
+  id                  String @id @default(uuid()) @db.Uuid
+  type                StockLocationType
+  name                String
+  sellerId            String? @unique @db.Uuid
+  seller              User? @relation(fields: [sellerId], references: [id])
+  balance             Int @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  outboundMovements   StockMovement[] @relation("MovementSource")
+  inboundMovements    StockMovement[] @relation("MovementDestination")
+
+  @@index([type])
+}
+
+model StockMovement {
+  id              String @id @default(uuid()) @db.Uuid
+  type            StockMovementType
+  quantity        Int
+  sourceId        String? @db.Uuid
+  source          StockLocation? @relation("MovementSource", fields: [sourceId], references: [id])
+  destinationId   String? @db.Uuid
+  destination     StockLocation? @relation("MovementDestination", fields: [destinationId], references: [id])
+  actorId         String @db.Uuid
+  actor           User @relation(fields: [actorId], references: [id])
+  saleId          String? @unique @db.Uuid
+  sale            Sale? @relation(fields: [saleId], references: [id])
+  requestKey      String? @unique
+  createdAt       DateTime @default(now())
+
+  @@index([sourceId, createdAt])
+  @@index([destinationId, createdAt])
+}
+
+model BusinessSettings {
+  id                    Int @id @default(1)
+  minimumPricePaise     Int @default(2500)
+  incentiveRatePaise    Int?
+  updatedAt             DateTime @updatedAt
+}
+
+model Sale {
+  id                    String @id @default(uuid()) @db.Uuid
+  sellerId              String @db.Uuid
+  seller                User @relation("SellerSales", fields: [sellerId], references: [id])
+  customerId            String @db.Uuid
+  customer              Customer @relation(fields: [customerId], references: [id])
+  quantity              Int
+  unitPricePaise        Int
+  totalPaise            Int
+  paymentMode           PaymentMode
+  status                SaleStatus
+  requestedAt           DateTime @default(now())
+  confirmedAt           DateTime?
+  decidedAt             DateTime?
+  decidedById           String? @db.Uuid
+  decidedBy             User? @relation("SaleDecider", fields: [decidedById], references: [id])
+  rejectionReason       String?
+  incentiveRatePaise    Int?
+  incentiveAmountPaise  Int?
+  requestKey            String? @unique
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  movement              StockMovement?
+  invoice               Invoice?
+  payments              PaymentRecord[]
+  notifications         Notification[]
+
+  @@index([sellerId, createdAt])
+  @@index([status, createdAt])
+  @@index([customerId])
+}
+
+model PaymentRecord {
+  id          String @id @default(uuid()) @db.Uuid
+  saleId      String @db.Uuid
+  sale        Sale @relation(fields: [saleId], references: [id])
+  collectorId String @db.Uuid
+  collector   User @relation(fields: [collectorId], references: [id])
+  mode        PaymentMode
+  amountPaise Int
+  createdAt   DateTime @default(now())
+
+  @@index([saleId])
+}
+
+model Invoice {
+  id             String @id @default(uuid()) @db.Uuid
+  saleId         String @unique @db.Uuid
+  sale           Sale @relation(fields: [saleId], references: [id])
+  number         String @unique
+  snapshot       Json
+  pdfPath        String?
+  createdAt      DateTime @default(now())
+  deliveries     Delivery[]
+}
+
+model Notification {
+  id          String @id @default(uuid()) @db.Uuid
+  recipientId String @db.Uuid
+  recipient   User @relation(fields: [recipientId], references: [id])
+  saleId      String? @db.Uuid
+  sale        Sale? @relation(fields: [saleId], references: [id])
+  kind        String
+  message     String
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+  deliveries  Delivery[]
+
+  @@index([recipientId, createdAt])
+}
+
+model Delivery {
+  id             String @id @default(uuid()) @db.Uuid
+  invoiceId      String? @db.Uuid
+  invoice        Invoice? @relation(fields: [invoiceId], references: [id])
+  notificationId String? @db.Uuid
+  notification   Notification? @relation(fields: [notificationId], references: [id])
+  channel        DeliveryChannel
+  status         DeliveryStatus @default(PENDING)
+  attempts       Int @default(0)
+  nextAttemptAt  DateTime?
+  providerRef    String?
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, nextAttemptAt])
+}
+
+model PasswordReset {
+  id         String @id @default(uuid()) @db.Uuid
+  userId     String @db.Uuid
+  user       User @relation(fields: [userId], references: [id])
+  tokenHash  String @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, expiresAt])
 }
