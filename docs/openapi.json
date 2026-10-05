@@ -1,0 +1,3216 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Femmeflo Inventory API",
+    "version": "0.2.0",
+    "description": "HTTP health, JWT authentication, Manager and Seller onboarding. Remaining PRD modules are not implemented yet."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api/v1"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "HTTP health",
+        "description": "Public. Reports configuration only. Use /ready for a live database check.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "API is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "database": {
+                          "type": "string",
+                          "enum": [
+                            "configured",
+                            "not_configured"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "database"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "API is running",
+                  "data": {
+                    "status": "ok",
+                    "database": "configured"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Database readiness",
+        "description": "Public. Executes SELECT 1. Does not validate schema migrations or external providers.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "API is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "database": {
+                          "type": "string",
+                          "enum": [
+                            "connected"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "database"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "API is ready",
+                  "data": {
+                    "database": "connected"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable or not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Service unavailable or not configured"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login",
+        "description": "Public. Email is trimmed/lowercased; phone must match its stored international format. Unknown/inactive accounts and wrong passwords return the same 401 message.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "type": "string"
+                        },
+                        "tokenType": {
+                          "type": "string",
+                          "enum": [
+                            "Bearer"
+                          ]
+                        },
+                        "expiresInSeconds": {
+                          "type": "integer"
+                        },
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "token",
+                        "tokenType",
+                        "expiresInSeconds",
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Login successful",
+                  "data": {
+                    "token": "<JWT returned by login>",
+                    "tokenType": "Bearer",
+                    "expiresInSeconds": 3600,
+                    "user": {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "name": "Ravi Seller",
+                      "email": "ravi@example.com",
+                      "phone": "+919876543211",
+                      "role": "SELLER",
+                      "active": true,
+                      "managerId": "11111111-1111-4111-8111-111111111111",
+                      "permissions": [],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": "Diva"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many authentication attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Too many authentication attempts"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable or not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Service unavailable or not configured"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              },
+              "example": {
+                "login": "ravi@example.com",
+                "password": "Example password 123!"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Current user",
+        "description": "Any authenticated active account.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Current user",
+                  "data": {
+                    "user": {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "name": "Ravi Seller",
+                      "email": "ravi@example.com",
+                      "phone": "+919876543211",
+                      "role": "SELLER",
+                      "active": true,
+                      "managerId": "11111111-1111-4111-8111-111111111111",
+                      "permissions": [],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": "Diva"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable or not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Service unavailable or not configured"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password": {
+      "patch": {
+        "summary": "Change password",
+        "description": "Any authenticated active account. All existing tokens are revoked. Log in with the new password after success.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Password changed. Log in again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {},
+                      "required": [],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Password changed. Log in again",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate contact or conflicting update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Duplicate contact or conflicting update"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many authentication attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Too many authentication attempts"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable or not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Service unavailable or not configured"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePassword"
+              },
+              "example": {
+                "currentPassword": "Example password 123!",
+                "newPassword": "Replacement password 123!"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/managers": {
+      "get": {
+        "summary": "List managers",
+        "description": "Super Admin.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive name, email or phone substring"
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "Account activation status"
+          },
+          {
+            "name": "managerId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Additional Manager filter; cannot broaden access"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive exact match"
+          },
+          {
+            "name": "district",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive exact match"
+          },
+          {
+            "name": "village",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive exact match"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Managers retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/User"
+                          }
+                        },
+                        "pagination": {
+                          "$ref": "#/components/schemas/Pagination"
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "pagination"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Managers retrieved",
+                  "data": {
+                    "items": [
+                      {
+                        "id": "11111111-1111-4111-8111-111111111111",
+                        "name": "Asha Manager",
+                        "email": "asha@example.com",
+                        "phone": "+919876543210",
+                        "role": "MANAGER",
+                        "active": true,
+                        "managerId": null,
+                        "permissions": [
+                          "SELLER_READ",
+                          "SELLER_CREATE"
+                        ],
+                        "state": "Maharashtra",
+                        "district": "Thane",
+                        "village": null
+                      }
+                    ],
+                    "pagination": {
+                      "page": 1,
+                      "pageSize": 20,
+                      "total": 1,
+                      "totalPages": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Manager",
+        "description": "Super Admin. Permissions default to an empty list. District requires state; village requires district.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Manager created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Manager created",
+                  "data": {
+                    "user": {
+                      "id": "11111111-1111-4111-8111-111111111111",
+                      "name": "Asha Manager",
+                      "email": "asha@example.com",
+                      "phone": "+919876543210",
+                      "role": "MANAGER",
+                      "active": true,
+                      "managerId": null,
+                      "permissions": [
+                        "SELLER_READ",
+                        "SELLER_CREATE"
+                      ],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found or outside assigned scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Record not found or outside assigned scope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate contact or conflicting update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Duplicate contact or conflicting update"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagerCreate"
+              },
+              "example": {
+                "name": "Asha Manager",
+                "phone": "+919876543210",
+                "email": "asha@example.com",
+                "password": "Example password 123!",
+                "state": "Maharashtra",
+                "district": "Thane",
+                "permissions": [
+                  "SELLER_READ",
+                  "SELLER_CREATE"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/managers/{id}": {
+      "get": {
+        "summary": "Get Manager",
+        "description": "Super Admin.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Manager or Seller UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manager retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Manager retrieved",
+                  "data": {
+                    "user": {
+                      "id": "11111111-1111-4111-8111-111111111111",
+                      "name": "Asha Manager",
+                      "email": "asha@example.com",
+                      "phone": "+919876543210",
+                      "role": "MANAGER",
+                      "active": true,
+                      "managerId": null,
+                      "permissions": [
+                        "SELLER_READ",
+                        "SELLER_CREATE"
+                      ],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found or outside assigned scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Record not found or outside assigned scope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Manager",
+        "description": "Super Admin. Editable fields: name, phone, email, state, district, village, active. Role, password, Manager assignment and permissions cannot be changed here. Activation changes revoke earlier tokens. Territory changes must remain consistent with assignments. Fields cannot currently be cleared with null.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Manager or Seller UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manager updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Manager updated",
+                  "data": {
+                    "user": {
+                      "id": "11111111-1111-4111-8111-111111111111",
+                      "name": "Asha Manager",
+                      "email": "asha@example.com",
+                      "phone": "+919876543210",
+                      "role": "MANAGER",
+                      "active": false,
+                      "managerId": null,
+                      "permissions": [
+                        "SELLER_READ",
+                        "SELLER_CREATE"
+                      ],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found or outside assigned scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Record not found or outside assigned scope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate contact or conflicting update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Duplicate contact or conflicting update"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              },
+              "example": {
+                "active": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/sellers": {
+      "get": {
+        "summary": "List sellers",
+        "description": "Super Admin.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive name, email or phone substring"
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "Account activation status"
+          },
+          {
+            "name": "managerId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Additional Manager filter; cannot broaden access"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive exact match"
+          },
+          {
+            "name": "district",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive exact match"
+          },
+          {
+            "name": "village",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive exact match"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sellers retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/User"
+                          }
+                        },
+                        "pagination": {
+                          "$ref": "#/components/schemas/Pagination"
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "pagination"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Sellers retrieved",
+                  "data": {
+                    "items": [
+                      {
+                        "id": "22222222-2222-4222-8222-222222222222",
+                        "name": "Ravi Seller",
+                        "email": "ravi@example.com",
+                        "phone": "+919876543211",
+                        "role": "SELLER",
+                        "active": true,
+                        "managerId": "11111111-1111-4111-8111-111111111111",
+                        "permissions": [],
+                        "state": "Maharashtra",
+                        "district": "Thane",
+                        "village": "Diva"
+                      }
+                    ],
+                    "pagination": {
+                      "page": 1,
+                      "pageSize": 20,
+                      "total": 1,
+                      "totalPages": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Seller",
+        "description": "Super Admin. Requires an active Manager; creates a zero-balance Seller stock account in the same transaction.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Seller created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Seller created",
+                  "data": {
+                    "user": {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "name": "Ravi Seller",
+                      "email": "ravi@example.com",
+                      "phone": "+919876543211",
+                      "role": "SELLER",
+                      "active": true,
+                      "managerId": "11111111-1111-4111-8111-111111111111",
+                      "permissions": [],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": "Diva"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found or outside assigned scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Record not found or outside assigned scope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate contact or conflicting update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Duplicate contact or conflicting update"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SellerCreate"
+              },
+              "example": {
+                "name": "Ravi Seller",
+                "phone": "+919876543211",
+                "email": "ravi@example.com",
+                "password": "Example password 123!",
+                "state": "Maharashtra",
+                "district": "Thane",
+                "village": "Diva",
+                "managerId": "11111111-1111-4111-8111-111111111111"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/sellers/{id}": {
+      "get": {
+        "summary": "Get Seller",
+        "description": "Super Admin.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Manager or Seller UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Seller retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Seller retrieved",
+                  "data": {
+                    "user": {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "name": "Ravi Seller",
+                      "email": "ravi@example.com",
+                      "phone": "+919876543211",
+                      "role": "SELLER",
+                      "active": true,
+                      "managerId": "11111111-1111-4111-8111-111111111111",
+                      "permissions": [],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": "Diva"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found or outside assigned scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Record not found or outside assigned scope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Seller",
+        "description": "Super Admin. Editable fields: name, phone, email, state, district, village, active. Role, password, Manager assignment and permissions cannot be changed here. Activation changes revoke earlier tokens. Territory changes must remain consistent with assignments. Fields cannot currently be cleared with null.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Manager or Seller UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Seller updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Seller updated",
+                  "data": {
+                    "user": {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "name": "Ravi Seller",
+                      "email": "ravi@example.com",
+                      "phone": "+919876543211",
+                      "role": "SELLER",
+                      "active": false,
+                      "managerId": "11111111-1111-4111-8111-111111111111",
+                      "permissions": [],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": "Diva"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found or outside assigned scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Record not found or outside assigned scope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate contact or conflicting update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Duplicate contact or conflicting update"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              },
+              "example": {
+                "active": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/managers/{id}/permissions": {
+      "patch": {
+        "summary": "Replace Manager permissions",
+        "description": "Super Admin. Replaces the complete list. Changes take effect on the next authenticated request. Only SELLER_READ and SELLER_CREATE have implemented business routes in this increment; other flags are reserved for PRD modules.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Manager or Seller UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manager permissions updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Manager permissions updated",
+                  "data": {
+                    "user": {
+                      "id": "11111111-1111-4111-8111-111111111111",
+                      "name": "Asha Manager",
+                      "email": "asha@example.com",
+                      "phone": "+919876543210",
+                      "role": "MANAGER",
+                      "active": true,
+                      "managerId": null,
+                      "permissions": [
+                        "SELLER_READ",
+                        "SELLER_CREATE"
+                      ],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found or outside assigned scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Record not found or outside assigned scope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Permissions"
+              },
+              "example": {
+                "permissions": [
+                  "SELLER_READ",
+                  "SELLER_CREATE"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/manager/sellers": {
+      "get": {
+        "summary": "List assigned Sellers",
+        "description": "Manager with SELLER_READ. Scope combines assignment and the Manager's configured territory. Query filters cannot broaden scope.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive name, email or phone substring"
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "Account activation status"
+          },
+          {
+            "name": "managerId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Additional Manager filter; cannot broaden access"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive exact match"
+          },
+          {
+            "name": "district",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive exact match"
+          },
+          {
+            "name": "village",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive exact match"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assigned Sellers retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/User"
+                          }
+                        },
+                        "pagination": {
+                          "$ref": "#/components/schemas/Pagination"
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "pagination"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Assigned Sellers retrieved",
+                  "data": {
+                    "items": [
+                      {
+                        "id": "22222222-2222-4222-8222-222222222222",
+                        "name": "Ravi Seller",
+                        "email": "ravi@example.com",
+                        "phone": "+919876543211",
+                        "role": "SELLER",
+                        "active": true,
+                        "managerId": "11111111-1111-4111-8111-111111111111",
+                        "permissions": [],
+                        "state": "Maharashtra",
+                        "district": "Thane",
+                        "village": "Diva"
+                      }
+                    ],
+                    "pagination": {
+                      "page": 1,
+                      "pageSize": 20,
+                      "total": 1,
+                      "totalPages": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Onboard assigned Seller",
+        "description": "Manager with SELLER_CREATE. Manager ID comes from the logged-in account. Supplying managerId/role/permissions is rejected. Missing territory fields inherit Manager restrictions; conflicting locations return 403. Creates the stock account atomically.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Seller created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Seller created",
+                  "data": {
+                    "user": {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "name": "Ravi Seller",
+                      "email": "ravi@example.com",
+                      "phone": "+919876543211",
+                      "role": "SELLER",
+                      "active": true,
+                      "managerId": "11111111-1111-4111-8111-111111111111",
+                      "permissions": [],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": "Diva"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found or outside assigned scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Record not found or outside assigned scope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate contact or conflicting update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Duplicate contact or conflicting update"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagerSellerCreate"
+              },
+              "example": {
+                "name": "Ravi Seller",
+                "phone": "+919876543211",
+                "email": "ravi@example.com",
+                "password": "Example password 123!",
+                "state": "Maharashtra",
+                "district": "Thane",
+                "village": "Diva"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/manager/sellers/{id}": {
+      "get": {
+        "summary": "Get assigned Seller",
+        "description": "Manager with SELLER_READ. Returns 404 for another Manager's Seller or a Seller outside the configured territory.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Manager or Seller UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assigned Seller retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "success": true,
+                  "message": "Assigned Seller retrieved",
+                  "data": {
+                    "user": {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "name": "Ravi Seller",
+                      "email": "ravi@example.com",
+                      "phone": "+919876543211",
+                      "role": "SELLER",
+                      "active": true,
+                      "managerId": "11111111-1111-4111-8111-111111111111",
+                      "permissions": [],
+                      "state": "Maharashtra",
+                      "district": "Thane",
+                      "village": "Diva"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid request or ID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked authentication; incorrect credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Missing, invalid, expired or revoked authentication; incorrect credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, permission or territory denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Role, permission or territory denied"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found or outside assigned scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Record not found or outside assigned scope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "SUPER_ADMIN",
+              "MANAGER",
+              "SELLER"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "managerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string",
+            "nullable": true
+          },
+          "district": {
+            "type": "string",
+            "nullable": true
+          },
+          "village": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "role",
+          "active",
+          "managerId",
+          "permissions",
+          "state",
+          "district",
+          "village"
+        ],
+        "additionalProperties": false
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "totalPages": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "pageSize",
+          "total",
+          "totalPages"
+        ],
+        "additionalProperties": false
+      },
+      "Login": {
+        "type": "object",
+        "properties": {
+          "login": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 254,
+            "description": "Assigned email or exact international phone number"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "login",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "ChangePassword": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 72,
+            "description": "12+ characters and at most 72 UTF-8 bytes. The byte limit also applies to Unicode passwords."
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "additionalProperties": false
+      },
+      "ManagerCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "district": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "village": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 72,
+            "description": "12+ characters and at most 72 UTF-8 bytes. The byte limit also applies to Unicode passwords."
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "SELLER_READ",
+                "SELLER_CREATE",
+                "CUSTOMER_READ",
+                "CUSTOMER_CREATE",
+                "SALES_READ",
+                "INVENTORY_READ"
+              ]
+            },
+            "maxItems": 6,
+            "default": []
+          }
+        },
+        "required": [
+          "name",
+          "phone",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "SellerCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "district": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "village": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 72,
+            "description": "12+ characters and at most 72 UTF-8 bytes. The byte limit also applies to Unicode passwords."
+          },
+          "managerId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "name",
+          "phone",
+          "password",
+          "managerId"
+        ],
+        "additionalProperties": false
+      },
+      "ManagerSellerCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "district": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "village": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 72,
+            "description": "12+ characters and at most 72 UTF-8 bytes. The byte limit also applies to Unicode passwords."
+          }
+        },
+        "required": [
+          "name",
+          "phone",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "UserUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "district": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "village": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "Permissions": {
+        "type": "object",
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "SELLER_READ",
+                "SELLER_CREATE",
+                "CUSTOMER_READ",
+                "CUSTOMER_CREATE",
+                "SALES_READ",
+                "INVENTORY_READ"
+              ]
+            },
+            "maxItems": 6
+          }
+        },
+        "required": [
+          "permissions"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}
