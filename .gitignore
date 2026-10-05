@@ -2,8 +2,12 @@ node_modules/
 
 # Environment files
 .env
-.env.example
 .env.*
+!.env.example
+
+dist/
+coverage/
+*.log
 
 # Prisma generated
 /src/generated/prisma
