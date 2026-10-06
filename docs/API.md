@@ -104,9 +104,13 @@ Implemented: health/readiness, login, current user, password change, Manager man
 | GET | /admin/incentives | Super Admin |
 | GET | /admin/incentives/settings | Super Admin |
 | PATCH | /admin/incentives/settings | Super Admin |
+| GET | /admin/dashboard | Super Admin |
+| GET | /admin/dashboard/filters | Super Admin |
 | GET | /manager/sales | Manager |
 | GET | /manager/sales/{id} | Manager |
+| GET | /manager/dashboard | Manager |
 | GET | /seller/incentives | Seller |
+| GET | /seller/dashboard | Seller |
 
 ## HTTP health
 
@@ -1230,6 +1234,52 @@ Method/URL:
 - PATCH /api/v1/admin/incentives/settings (body: `{"incentiveRatePaise": 1500}`)
 
 Success: HTTP 200
+
+## Seller Dashboard
+
+Purpose: Seller. Returns Seller operational metrics (`assignedPackets`, `soldPackets`, `remainingPackets`, `totalIncentivePaise`, `recentSales`).
+
+Method/URL: GET /api/v1/seller/dashboard
+
+Success: HTTP 200
+
+## Manager Dashboard
+
+Purpose: Manager. Returns Manager operational metrics across assigned Sellers.
+
+Method/URL: GET /api/v1/manager/dashboard
+
+Success: HTTP 200
+
+## Super Admin Dashboard
+
+Purpose: Super Admin. Summary metrics with geographic hierarchy filters (`state`, `district`, `village`, `managerId`, `sellerId`, `categoryId`).
+
+Method/URL: GET /api/v1/admin/dashboard
+
+Query parameters: `state`, `district`, `village`, `managerId`, `sellerId`, `categoryId`.
+
+Success: HTTP 200
+
+```json
+{
+  "success": true,
+  "message": "Super Admin dashboard retrieved",
+  "data": {
+    "metrics": {
+      "totalPacketsSold": 50,
+      "totalEarningsPaise": 125000,
+      "totalEarningsRupees": 1250,
+      "totalStates": 2,
+      "totalShops": 15,
+      "totalManagers": 3,
+      "totalSellers": 8,
+      "totalInventory": 400,
+      "totalIncentivePaise": 75000
+    }
+  }
+}
+```
 
 ## Frontend handoff
 
