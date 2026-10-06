@@ -93,6 +93,16 @@ Implemented: health/readiness, login, current user, password change, Manager man
 | GET | /manager/inventory | Manager |
 | GET | /seller/inventory | Seller |
 | GET | /seller/inventory/transactions | Seller |
+| POST | /seller/sales | Seller |
+| GET | /seller/sales | Seller |
+| GET | /seller/sales/{id} | Seller |
+| GET | /admin/approvals | Super Admin |
+| POST | /admin/approvals/{saleId}/approve | Super Admin |
+| POST | /admin/approvals/{saleId}/reject | Super Admin |
+| GET | /admin/sales | Super Admin |
+| GET | /admin/sales/{id} | Super Admin |
+| GET | /manager/sales | Manager |
+| GET | /manager/sales/{id} | Manager |
 
 ## HTTP health
 
@@ -1127,6 +1137,62 @@ Success: HTTP 200
   }
 }
 ```
+
+## Record Sale
+
+Purpose: Seller. Records a packet sale. If unitPricePaise < 2500 (below ₹25), enters `PENDING_APPROVAL` and notifies Admin. If >= 2500, confirms immediately (deducts seller stock, generates invoice).
+
+Method/URL: POST /api/v1/seller/sales
+
+Authentication: Bearer token required. Authorization: Seller.
+
+Request body:
+
+```json
+{
+  "customerId": "44444444-4444-4444-8444-444444444444",
+  "quantity": 10,
+  "unitPricePaise": 2500,
+  "paymentMode": "CASH"
+}
+```
+
+Success: HTTP 201
+
+```json
+{
+  "success": true,
+  "message": "Sale confirmed successfully",
+  "data": {
+    "sale": {
+      "id": "77777777-7777-7777-7777-777777777777",
+      "quantity": 10,
+      "unitPricePaise": 2500,
+      "totalPaise": 25000,
+      "paymentMode": "CASH",
+      "status": "CONFIRMED"
+    }
+  }
+}
+```
+
+## Pending Low-Price Approvals
+
+Purpose: Super Admin. Lists sales awaiting low-price approval.
+
+Method/URL: GET /api/v1/admin/approvals
+
+Success: HTTP 200
+
+## Approve / Reject Low-Price Sale
+
+Purpose: Super Admin. Approves or rejects a low-price sale. Approval deducts stock & generates invoice. Rejection leaves stock untouched.
+
+Method/URL:
+- POST /api/v1/admin/approvals/{saleId}/approve
+- POST /api/v1/admin/approvals/{saleId}/reject (body: `{"reason": "Price too low"}`)
+
+Success: HTTP 200
 
 ## Frontend handoff
 
