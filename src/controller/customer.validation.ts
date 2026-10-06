@@ -14,9 +14,14 @@ export const createCustomerSchema = z.strictObject({
   district: location,
   village: location,
   photoPath: z.string().trim().max(500).optional(),
+  photoUrl: z.string().trim().max(500).optional(),
+  imageUrl: z.string().trim().max(500).optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
-});
+}).transform((data) => ({
+  ...data,
+  photoPath: data.photoPath ?? data.photoUrl ?? data.imageUrl,
+}));
 
 export const updateCustomerSchema = z.strictObject({
   shopName: z.string().trim().min(1).max(100).optional(),
@@ -29,10 +34,19 @@ export const updateCustomerSchema = z.strictObject({
   district: location.optional(),
   village: location.optional(),
   photoPath: z.string().trim().max(500).optional(),
+  photoUrl: z.string().trim().max(500).optional(),
+  imageUrl: z.string().trim().max(500).optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
   active: z.boolean().optional(),
-}).refine((value) => Object.keys(value).length > 0, "Provide at least one field");
+}).refine((value) => Object.keys(value).length > 0, "Provide at least one field")
+.transform((data) => {
+  const photo = data.photoPath ?? data.photoUrl ?? data.imageUrl;
+  return {
+    ...data,
+    photoPath: photo !== undefined ? photo : data.photoPath,
+  };
+});
 
 export const listCustomersSchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(100_000).default(1),

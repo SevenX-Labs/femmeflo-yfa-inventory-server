@@ -128,9 +128,11 @@ test("Category and Customer Management Endpoints Flow", async (t) => {
       state: "Maharashtra",
       district: "Thane",
       village: "Diva",
+      photoUrl: "https://example.com/images/shop1.jpg",
     },
   });
   assert.equal(createCustomer.status, 201);
+  assert.equal((createCustomer.json.data["customer"] as { photoPath?: string }).photoPath, "https://example.com/images/shop1.jpg");
   const customerId = (createCustomer.json.data["customer"] as { id: string }).id;
 
   // Seller gets own customer
