@@ -46,7 +46,7 @@ export async function createSeller(database: PrismaClient, input: CreateSellerIn
         }, select: publicUserSelect });
         await tx.stockLocation.create({ data: { type: "SELLER", name: seller.name, sellerId: seller.id } });
         return seller;
-      }, { isolationLevel: "Serializable" });
+      });
     } catch (error: any) {
       if (error?.code === "P2034" && attempts < 3) {
         attempts++;
@@ -80,7 +80,7 @@ export async function listUsers(database: PrismaClient, scope: Prisma.UserWhereI
   const [items, total] = await database.$transaction([
     database.user.findMany({ where, select: publicUserSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
     database.user.count({ where }),
-  ], { isolationLevel: "RepeatableRead" });
+  ]);
   return { items, pagination: { page: query.page, pageSize: query.pageSize, total, totalPages: Math.ceil(total / query.pageSize) } };
 }
 
@@ -124,5 +124,5 @@ export async function updateUser(database: PrismaClient, role: "MANAGER" | "SELL
     const user = await tx.user.update({ where: { id }, data, select: publicUserSelect });
     if (role === "SELLER" && name !== undefined) await tx.stockLocation.updateMany({ where: { sellerId: id }, data: { name } });
     return user;
-  }, { isolationLevel: "Serializable" });
+  });
 }

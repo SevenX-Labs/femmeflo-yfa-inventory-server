@@ -10,6 +10,7 @@ export function createSellerSalesRoutes(database: PrismaClient) {
   router.post("/", controller.create);
   router.get("/", controller.list);
   router.get("/:id", controller.get);
+  router.patch("/:id/payment", controller.collectPayment);
 
   return router;
 }

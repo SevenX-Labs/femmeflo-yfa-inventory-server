@@ -106,11 +106,14 @@ Implemented: health/readiness, login, current user, password change, Manager man
 | PATCH | /admin/incentives/settings | Super Admin |
 | GET | /admin/dashboard | Super Admin |
 | GET | /admin/dashboard/filters | Super Admin |
+| GET | /admin/invoices | Super Admin |
+| GET | /admin/invoices/{id} | Super Admin |
 | GET | /manager/sales | Manager |
 | GET | /manager/sales/{id} | Manager |
 | GET | /manager/dashboard | Manager |
 | GET | /seller/incentives | Seller |
 | GET | /seller/dashboard | Seller |
+| PATCH | /seller/sales/{id}/payment | Seller |
 
 ## HTTP health
 
@@ -1280,6 +1283,24 @@ Success: HTTP 200
   }
 }
 ```
+
+## Collect Pending Payment
+
+Purpose: Seller or Admin. Collects pending payment for a sale (`CASH` or `BANK`), creating a `PaymentRecord`.
+
+Method/URL: PATCH /api/v1/seller/sales/{id}/payment
+
+Request body: `{"mode": "CASH"}`
+
+Success: HTTP 200
+
+## Invoices Listing
+
+Purpose: Super Admin. Lists generated invoices with paginated sale and snapshot details.
+
+Method/URL: GET /api/v1/admin/invoices
+
+Success: HTTP 200
 
 ## Frontend handoff
 

@@ -3,6 +3,7 @@ import type { SellerSalesService } from "../../services/seller/sales.service.js"
 import type { PublicUser } from "../../services/auth/auth.types.js";
 import { parseInput, idSchema } from "../../middleware/validation.js";
 import { createSaleSchema, listSalesSchema } from "../sales.validation.js";
+import { collectPaymentSchema } from "../payment.validation.js";
 
 export function createSellerSalesController(service: SellerSalesService) {
   return {
@@ -36,6 +37,18 @@ export function createSellerSalesController(service: SellerSalesService) {
         success: true,
         message: "Sale details retrieved",
         data: { sale },
+      });
+    },
+
+    collectPayment: async (request: Request, response: Response) => {
+      const user = response.locals.authUser as PublicUser;
+      const id = parseInput(idSchema, request.params["id"]);
+      const input = parseInput(collectPaymentSchema, request.body);
+      const result = await service.collectPayment(user.id, id, input.mode);
+      response.json({
+        success: true,
+        message: "Pending payment collected successfully",
+        data: result,
       });
     },
   };

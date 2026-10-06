@@ -256,6 +256,38 @@ export function createSellerSalesService(database: PrismaClient) {
       }
       return sale;
     },
+
+    collectPayment: async (sellerId: string, saleId: string, mode: "CASH" | "BANK") => {
+      const sale = await database.sale.findUnique({
+        where: { id: saleId },
+        include: { payments: true },
+      });
+
+      if (!sale || sale.sellerId !== sellerId) {
+        throw new HttpError(404, "Sale record not found");
+      }
+      if (sale.paymentMode !== "PENDING") {
+        throw new HttpError(409, `Payment for this sale has already been set to ${sale.paymentMode}`);
+      }
+
+      return database.$transaction(async (tx) => {
+        const updatedSale = await tx.sale.update({
+          where: { id: saleId },
+          data: { paymentMode: mode },
+        });
+
+        const payment = await tx.paymentRecord.create({
+          data: {
+            saleId: sale.id,
+            collectorId: sellerId,
+            mode,
+            amountPaise: sale.totalPaise,
+          },
+        });
+
+        return { sale: updatedSale, payment };
+      });
+    },
   };
 }
 
