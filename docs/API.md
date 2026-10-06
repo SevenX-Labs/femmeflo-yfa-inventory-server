@@ -69,6 +69,21 @@ Implemented: health/readiness, login, current user, password change, Manager man
 | GET | /manager/sellers | Manager with SELLER_READ |
 | POST | /manager/sellers | Manager with SELLER_CREATE |
 | GET | /manager/sellers/{id} | Manager with SELLER_READ |
+| GET | /categories | Any authenticated user |
+| POST | /admin/categories | Super Admin |
+| PATCH | /admin/categories/{id} | Super Admin |
+| GET | /seller/customers | Seller |
+| POST | /seller/customers | Seller |
+| GET | /seller/customers/{id} | Seller |
+| PATCH | /seller/customers/{id} | Seller |
+| GET | /manager/customers | Manager |
+| POST | /manager/customers | Manager |
+| GET | /manager/customers/{id} | Manager |
+| PATCH | /manager/customers/{id} | Manager |
+| GET | /admin/customers | Super Admin |
+| POST | /admin/customers | Super Admin |
+| GET | /admin/customers/{id} | Super Admin |
+| PATCH | /admin/customers/{id} | Super Admin |
 
 ## HTTP health
 
@@ -902,6 +917,133 @@ Success: HTTP 200
 ```
 
 Errors: 400 (Invalid request or ID); 401 (Missing, invalid, expired or revoked authentication; incorrect credentials); 403 (Role, permission or territory denied); 404 (Record not found or outside assigned scope); 500 (Internal server error). Error JSON uses the common format above.
+
+## List Categories
+
+Purpose: Authenticated. Returns active categories for selecting when adding/editing customers.
+
+Method/URL: GET /api/v1/categories
+
+Authentication: Bearer token required. Authorization: Any authenticated user.
+
+Headers: Authorization: Bearer <token>. No request body.
+
+Parameters:
+
+| Name | Location | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| search | query | string | No | Search name |
+| active | query | string | No | Filter by active status (true/false) |
+
+Success: HTTP 200
+
+```json
+{
+  "success": true,
+  "message": "Categories retrieved",
+  "data": {
+    "items": [
+      {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "name": "Retail Store",
+        "active": true
+      }
+    ]
+  }
+}
+```
+
+## Create Category
+
+Purpose: Super Admin.
+
+Method/URL: POST /api/v1/admin/categories
+
+Authentication: Bearer token required. Authorization: Super Admin.
+
+Request body:
+
+```json
+{
+  "name": "Supermarket"
+}
+```
+
+Success: HTTP 201
+
+```json
+{
+  "success": true,
+  "message": "Category created",
+  "data": {
+    "category": {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "name": "Supermarket",
+      "active": true
+    }
+  }
+}
+```
+
+Errors: 400 (Invalid input); 401 (Unauthorized); 403 (Forbidden); 409 (Category with this name already exists).
+
+## Add Customer / Shop
+
+Purpose: Seller, Manager, or Admin. Onboards a customer/shop with geography, category, and contact details.
+
+Method/URL: POST /api/v1/seller/customers (or /api/v1/manager/customers, /api/v1/admin/customers)
+
+Authentication: Bearer token required.
+
+Request body:
+
+```json
+{
+  "shopName": "Quality General Store",
+  "contactName": "Ramesh Kumar",
+  "phone": "+919876543299",
+  "categoryId": "33333333-3333-4333-8333-333333333333",
+  "sellerId": "22222222-2222-4222-8222-222222222222",
+  "state": "Maharashtra",
+  "district": "Thane",
+  "village": "Diva",
+  "latitude": 19.18,
+  "longitude": 73.04
+}
+```
+
+Success: HTTP 201
+
+```json
+{
+  "success": true,
+  "message": "Customer created",
+  "data": {
+    "customer": {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "shopName": "Quality General Store",
+      "contactName": "Ramesh Kumar",
+      "phone": "+919876543299",
+      "categoryId": "33333333-3333-4333-8333-333333333333",
+      "sellerId": "22222222-2222-4222-8222-222222222222",
+      "state": "Maharashtra",
+      "district": "Thane",
+      "village": "Diva",
+      "active": true
+    }
+  }
+}
+```
+
+## List Customers
+
+Purpose: Scoped listing by role (Seller sees own customers; Manager sees assigned sellers' customers; Admin sees all).
+
+Method/URL: GET /api/v1/seller/customers (or /api/v1/manager/customers, /api/v1/admin/customers)
+
+Query parameters: `page`, `pageSize`, `search`, `categoryId`, `sellerId`, `state`, `district`, `village`.
+
+Success: HTTP 200 with paginated items.
 
 ## Frontend handoff
 
