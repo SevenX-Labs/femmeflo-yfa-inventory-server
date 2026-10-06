@@ -101,8 +101,12 @@ Implemented: health/readiness, login, current user, password change, Manager man
 | POST | /admin/approvals/{saleId}/reject | Super Admin |
 | GET | /admin/sales | Super Admin |
 | GET | /admin/sales/{id} | Super Admin |
+| GET | /admin/incentives | Super Admin |
+| GET | /admin/incentives/settings | Super Admin |
+| PATCH | /admin/incentives/settings | Super Admin |
 | GET | /manager/sales | Manager |
 | GET | /manager/sales/{id} | Manager |
+| GET | /seller/incentives | Seller |
 
 ## HTTP health
 
@@ -1191,6 +1195,39 @@ Purpose: Super Admin. Approves or rejects a low-price sale. Approval deducts sto
 Method/URL:
 - POST /api/v1/admin/approvals/{saleId}/approve
 - POST /api/v1/admin/approvals/{saleId}/reject (body: `{"reason": "Price too low"}`)
+
+Success: HTTP 200
+
+## Seller Incentives
+
+Purpose: Seller. Returns seller's total confirmed packets sold, earned incentive, and detailed sale-by-sale incentive list.
+
+Method/URL: GET /api/v1/seller/incentives
+
+Success: HTTP 200
+
+```json
+{
+  "success": true,
+  "message": "Incentives retrieved",
+  "data": {
+    "summary": {
+      "totalPacketsSold": 20,
+      "totalIncentivePaise": 30000,
+      "totalIncentiveRupees": 300
+    },
+    "items": []
+  }
+}
+```
+
+## Admin Business Settings & Incentive Rate
+
+Purpose: Super Admin. Views and updates global minimum price threshold and packet incentive rate.
+
+Method/URL:
+- GET /api/v1/admin/incentives/settings
+- PATCH /api/v1/admin/incentives/settings (body: `{"incentiveRatePaise": 1500}`)
 
 Success: HTTP 200
 
