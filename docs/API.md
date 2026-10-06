@@ -84,6 +84,15 @@ Implemented: health/readiness, login, current user, password change, Manager man
 | POST | /admin/customers | Super Admin |
 | GET | /admin/customers/{id} | Super Admin |
 | PATCH | /admin/customers/{id} | Super Admin |
+| GET | /admin/inventory | Super Admin |
+| POST | /admin/inventory/warehouses | Super Admin |
+| GET | /admin/inventory/warehouses | Super Admin |
+| POST | /admin/inventory/receipts | Super Admin |
+| POST | /admin/inventory/transfers | Super Admin |
+| GET | /admin/inventory/transactions | Super Admin |
+| GET | /manager/inventory | Manager |
+| GET | /seller/inventory | Seller |
+| GET | /seller/inventory/transactions | Seller |
 
 ## HTTP health
 
@@ -1044,6 +1053,80 @@ Method/URL: GET /api/v1/seller/customers (or /api/v1/manager/customers, /api/v1/
 Query parameters: `page`, `pageSize`, `search`, `categoryId`, `sellerId`, `state`, `district`, `village`.
 
 Success: HTTP 200 with paginated items.
+
+## Inventory Summary & Locations
+
+Purpose: Super Admin. Returns total stock levels across HQ, Warehouses, and Sellers.
+
+Method/URL: GET /api/v1/admin/inventory
+
+Authentication: Bearer token required. Authorization: Super Admin.
+
+Success: HTTP 200
+
+```json
+{
+  "success": true,
+  "message": "Inventory summary retrieved",
+  "data": {
+    "totalStock": 400,
+    "hqStock": 210,
+    "warehouseStock": 150,
+    "sellerStock": 40,
+    "locations": []
+  }
+}
+```
+
+## Stock Receipt (HQ)
+
+Purpose: Super Admin. Adds newly arrived stock to HQ inventory balance.
+
+Method/URL: POST /api/v1/admin/inventory/receipts
+
+Request body: `{"quantity": 400}`
+
+Success: HTTP 201
+
+## Stock Transfer
+
+Purpose: Super Admin. Transfers stock between locations (HQ -> Warehouse, Warehouse -> Seller). Rejects with 409 if source stock balance is insufficient.
+
+Method/URL: POST /api/v1/admin/inventory/transfers
+
+Request body:
+
+```json
+{
+  "sourceId": "55555555-5555-5555-5555-555555555555",
+  "destinationId": "66666666-6666-6666-6666-666666666666",
+  "quantity": 40
+}
+```
+
+Success: HTTP 200
+
+## Seller Inventory Position
+
+Purpose: Seller. Returns seller's stock location (`assigned`, `sold`, `remaining`).
+
+Method/URL: GET /api/v1/seller/inventory
+
+Success: HTTP 200
+
+```json
+{
+  "success": true,
+  "message": "Inventory retrieved",
+  "data": {
+    "locationId": "66666666-6666-6666-6666-666666666666",
+    "name": "Ravi Seller Stock",
+    "assigned": 40,
+    "sold": 0,
+    "remaining": 40
+  }
+}
+```
 
 ## Frontend handoff
 

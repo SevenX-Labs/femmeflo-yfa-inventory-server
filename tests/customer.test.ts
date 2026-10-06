@@ -27,10 +27,16 @@ async function request(path: string, options: { method?: string; body?: unknown;
     if (options.token) headers["Authorization"] = `Bearer ${options.token}`;
     if (options.body) headers["Content-Type"] = "application/json";
 
-    const response = await fetch(`http://127.0.0.1:${port}/api/v1${path}`, {
+    const reqInit: RequestInit = {
       method: options.method ?? "GET",
       headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
+    };
+    if (options.body) {
+      reqInit.body = JSON.stringify(options.body);
+    }
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/v1${path}`, {
+      ...reqInit,
     });
     const json = (await response.json()) as { success: boolean; message: string; data: Record<string, unknown> };
     return { status: response.status, json };
@@ -40,7 +46,8 @@ async function request(path: string, options: { method?: string; body?: unknown;
 }
 
 test("Category and Customer Management Endpoints Flow", async (t) => {
-  const timestamp = Date.now();
+  const rand = Math.floor(Math.random() * 8999999 + 1000000);
+  const timestamp = `${Date.now()}_${rand}`;
   
   // 1. Create Admin, Manager, Seller users
   const adminRes = await auth.login(process.env["ADMIN_EMAIL"] ?? "admin@femmeflo.com", process.env["ADMIN_PASSWORD"] ?? "AdminPassword123!");
@@ -52,7 +59,7 @@ test("Category and Customer Management Endpoints Flow", async (t) => {
     token: adminToken,
     body: {
       name: `Customer Test Manager ${timestamp}`,
-      phone: `+91987${String(timestamp).slice(-7)}`,
+      phone: `+9187${rand}`,
       email: `mgr_${timestamp}@test.com`,
       password: "TestPassword123!",
       state: "Maharashtra",
@@ -72,7 +79,7 @@ test("Category and Customer Management Endpoints Flow", async (t) => {
     token: managerToken,
     body: {
       name: `Customer Test Seller ${timestamp}`,
-      phone: `+91986${String(timestamp).slice(-7)}`,
+      phone: `+9186${rand}`,
       email: `seller_${timestamp}@test.com`,
       password: "TestPassword123!",
       state: "Maharashtra",
@@ -116,7 +123,7 @@ test("Category and Customer Management Endpoints Flow", async (t) => {
     body: {
       shopName: `Quality Supermarket ${timestamp}`,
       contactName: "Ramesh Kumar",
-      phone: `+91985${String(timestamp).slice(-7)}`,
+      phone: `+9185${rand}`,
       categoryId,
       state: "Maharashtra",
       district: "Thane",

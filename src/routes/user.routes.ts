@@ -10,6 +10,9 @@ import { createCategoryRoutes } from "./category.routes.js";
 import { createAdminCustomerRoutes } from "./admin/customer.routes.js";
 import { createManagerCustomerRoutes } from "./manager/customer.routes.js";
 import { createSellerCustomerRoutes } from "./seller/customer.routes.js";
+import { createAdminInventoryRoutes } from "./admin/inventory.routes.js";
+import { createManagerInventoryRoutes } from "./manager/inventory.routes.js";
+import { createSellerInventoryRoutes } from "./seller/inventory.routes.js";
 
 export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   const router = Router();
@@ -24,13 +27,16 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   router.use("/admin/managers", authenticate, requireRole("SUPER_ADMIN"), createManagerRoutes(database));
   router.use("/admin/sellers", authenticate, requireRole("SUPER_ADMIN"), createAdminSellerRoutes(database));
   router.use("/admin/customers", authenticate, requireRole("SUPER_ADMIN"), createAdminCustomerRoutes(database));
+  router.use("/admin/inventory", authenticate, requireRole("SUPER_ADMIN"), createAdminInventoryRoutes(database));
 
   // Manager routes
   router.use("/manager/sellers", authenticate, requireRole("MANAGER"), createManagerSellerRoutes(database));
   router.use("/manager/customers", authenticate, requireRole("MANAGER"), createManagerCustomerRoutes(database));
+  router.use("/manager/inventory", authenticate, requireRole("MANAGER"), createManagerInventoryRoutes(database));
 
   // Seller routes
   router.use("/seller/customers", authenticate, requireRole("SELLER"), createSellerCustomerRoutes(database));
+  router.use("/seller/inventory", authenticate, requireRole("SELLER"), createSellerInventoryRoutes(database));
 
   return router;
 }
