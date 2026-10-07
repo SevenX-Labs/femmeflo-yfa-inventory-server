@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import type { Router } from "express";
 import { errorHandler, notFound } from "./middleware/error.middleware.js";
+import { setupSwagger } from "./config/swagger.js";
 
 type AppOptions = {
   corsOrigins: string[];
@@ -23,6 +24,7 @@ export function createApp({ corsOrigins, requestLogging = true, authRoutes, user
     app.use(morgan(":method :status :response-time ms"));
   }
   app.use(express.json({ limit: "100kb" }));
+  setupSwagger(app);
   app.get("/api/v1/health", (_request, response) => {
     response.json({
       success: true,
@@ -51,3 +53,4 @@ export function createApp({ corsOrigins, requestLogging = true, authRoutes, user
   app.use(errorHandler);
   return app;
 }
+

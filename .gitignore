@@ -17,3 +17,8 @@ coverage/
 .claude/
 .windsurf/
 skills-lock.json
+
+# Storage / Uploads
+public/storage/
+public/invoices/
+

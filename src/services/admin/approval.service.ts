@@ -1,6 +1,7 @@
 import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
 import type { ListSalesInput, RejectSaleInput } from "../../controller/sales.validation.js";
 import { HttpError } from "../../middleware/validation.js";
+import { processInvoicePdf } from "../pdf.service.js";
 
 export function createAdminApprovalService(database: PrismaClient) {
   return {
@@ -43,7 +44,8 @@ export function createAdminApprovalService(database: PrismaClient) {
     },
 
     approve: async (adminId: string, saleId: string) => {
-      return database.$transaction(async (tx) => {
+      const result = await database.$transaction(async (tx) => {
+
         const sale = await tx.sale.findUnique({
           where: { id: saleId },
           include: {
@@ -165,8 +167,13 @@ export function createAdminApprovalService(database: PrismaClient) {
           },
         });
 
-        return { ...updatedSale, invoice };
+        return { updatedSale, invoice };
       });
+
+      // Process Invoice PDF after transaction completes
+      const pdfPath = await processInvoicePdf(database, result.invoice.id).catch(() => null);
+      const invoice = pdfPath ? { ...result.invoice, pdfPath } : result.invoice;
+      return { ...result.updatedSale, invoice };
     },
 
     reject: async (adminId: string, saleId: string, input: RejectSaleInput) => {

@@ -1,6 +1,7 @@
 import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
 import type { CreateSaleInput, ListSalesInput } from "../../controller/sales.validation.js";
 import { HttpError } from "../../middleware/validation.js";
+import { processInvoicePdf } from "../pdf.service.js";
 
 // Helper function to build date range filters for month boundaries (Asia/Kolkata or UTC)
 export function getPeriodDateRange(period?: "all" | "this_month" | "last_month"): { gte?: Date; lte?: Date } | undefined {
@@ -96,7 +97,8 @@ export function createSellerSalesService(database: PrismaClient) {
       }
 
       // Unit price >= ₹25: Confirm immediately in atomic transaction
-      return database.$transaction(async (tx) => {
+      const result = await database.$transaction(async (tx) => {
+
         // Find seller stock location
         const sellerLoc = await tx.stockLocation.findUnique({ where: { sellerId } });
         if (!sellerLoc) {
@@ -194,8 +196,12 @@ export function createSellerSalesService(database: PrismaClient) {
           });
         }
 
-        return { ...sale, invoice };
+        return { sale, invoice };
       });
+
+      const pdfPath = await processInvoicePdf(database, result.invoice.id).catch(() => null);
+      const invoice = pdfPath ? { ...result.invoice, pdfPath } : result.invoice;
+      return { ...result.sale, invoice };
     },
 
     list: async (sellerId: string, query: ListSalesInput) => {

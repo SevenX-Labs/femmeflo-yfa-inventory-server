@@ -13,7 +13,10 @@ export function createAuthRoutes(auth: AuthService) {
     message: { success: false, message: "Too many authentication attempts. Try again later" },
   });
   routes.post("/login", limit, controller.login);
+  routes.post("/forgot-password", limit, controller.forgotPassword);
+  routes.post("/reset-password", limit, controller.resetPassword);
   routes.get("/me", requireAuthentication(auth), controller.me);
   routes.patch("/password", limit, requireAuthentication(auth), controller.changePassword);
   return routes;
 }
+

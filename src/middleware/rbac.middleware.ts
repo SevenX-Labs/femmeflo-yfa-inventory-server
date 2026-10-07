@@ -1,10 +1,11 @@
 import type { RequestHandler } from "express";
 import type { PublicUser, Role } from "../services/auth/auth.types.js";
+import { ALL_PERMISSIONS, type Permission } from "../constants/permissions.js";
 
-export const managerPermissions = ["SELLER_READ", "SELLER_CREATE", "CUSTOMER_READ", "CUSTOMER_CREATE", "SALES_READ", "INVENTORY_READ"] as const;
-export type ManagerPermission = typeof managerPermissions[number];
+export const managerPermissions = ALL_PERMISSIONS;
+export type ManagerPermission = Permission;
 
-export function requirePermission(permission: ManagerPermission): RequestHandler {
+export function requirePermission(permission: Permission): RequestHandler {
   return (_request, response, next) => {
     const user = response.locals.authUser as PublicUser | undefined;
     if (!user) {
@@ -16,6 +17,25 @@ export function requirePermission(permission: ManagerPermission): RequestHandler
       return;
     }
     next();
+  };
+}
+
+export function requireAnyPermission(permissions: Permission[]): RequestHandler {
+  return (_request, response, next) => {
+    const user = response.locals.authUser as PublicUser | undefined;
+    if (!user) {
+      response.status(401).json({ success: false, message: "Authentication required" });
+      return;
+    }
+    if (user.role === "SUPER_ADMIN") {
+      next();
+      return;
+    }
+    if (user.role === "MANAGER" && permissions.some((p) => user.permissions.includes(p))) {
+      next();
+      return;
+    }
+    response.status(403).json({ success: false, message: "Permission denied" });
   };
 }
 
@@ -33,3 +53,4 @@ export function requireRole(...roles: Role[]): RequestHandler {
     next();
   };
 }
+
