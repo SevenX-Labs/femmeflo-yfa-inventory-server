@@ -1,0 +1,291 @@
+{
+  "base": "http://127.0.0.1:5000/api/v1",
+  "results": [
+    {
+      "name": "Health",
+      "method": "GET",
+      "path": "/health",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 91,
+      "message": "API is running"
+    },
+    {
+      "name": "Database readiness",
+      "method": "GET",
+      "path": "/ready",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 294,
+      "message": "API is ready"
+    },
+    {
+      "name": "OpenAPI document",
+      "method": "GET",
+      "path": "/docs.json",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 5
+    },
+    {
+      "name": "Unknown route",
+      "method": "GET",
+      "path": "/does-not-exist",
+      "expected": 404,
+      "status": 404,
+      "passed": true,
+      "milliseconds": 8,
+      "message": "Route not found"
+    },
+    {
+      "name": "Missing login fields",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 400,
+      "status": 400,
+      "passed": true,
+      "milliseconds": 43,
+      "message": "Provide login and password"
+    },
+    {
+      "name": "Malformed JSON",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 400,
+      "status": 400,
+      "passed": true,
+      "milliseconds": 9,
+      "message": "Request body must be valid JSON"
+    },
+    {
+      "name": "Wrong credentials",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 401,
+      "status": 401,
+      "passed": true,
+      "milliseconds": 543,
+      "message": "Invalid credentials or inactive account"
+    },
+    {
+      "name": "Missing token",
+      "method": "GET",
+      "path": "/auth/me",
+      "expected": 401,
+      "status": 401,
+      "passed": true,
+      "milliseconds": 6,
+      "message": "Authentication required"
+    },
+    {
+      "name": "Invalid token",
+      "method": "GET",
+      "path": "/auth/me",
+      "expected": 401,
+      "status": 401,
+      "passed": true,
+      "milliseconds": 7,
+      "message": "Invalid or expired token"
+    },
+    {
+      "name": "Admin login",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 476,
+      "message": "Login successful"
+    },
+    {
+      "name": "Admin GET /auth/me",
+      "method": "GET",
+      "path": "/auth/me",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 203,
+      "message": "Current user"
+    },
+    {
+      "name": "Admin GET /categories",
+      "method": "GET",
+      "path": "/categories",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 126,
+      "message": "Categories retrieved"
+    },
+    {
+      "name": "Admin GET /admin/managers",
+      "method": "GET",
+      "path": "/admin/managers",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 234,
+      "message": "Managers retrieved"
+    },
+    {
+      "name": "Admin GET /admin/sellers",
+      "method": "GET",
+      "path": "/admin/sellers",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 219,
+      "message": "Sellers retrieved"
+    },
+    {
+      "name": "Admin GET /admin/customers",
+      "method": "GET",
+      "path": "/admin/customers",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 348,
+      "message": "Customers retrieved"
+    },
+    {
+      "name": "Admin GET /admin/inventory",
+      "method": "GET",
+      "path": "/admin/inventory",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 248,
+      "message": "Inventory summary retrieved"
+    },
+    {
+      "name": "Admin GET /admin/inventory/warehouses",
+      "method": "GET",
+      "path": "/admin/inventory/warehouses",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 99,
+      "message": "Warehouses retrieved"
+    },
+    {
+      "name": "Admin GET /admin/inventory/transactions",
+      "method": "GET",
+      "path": "/admin/inventory/transactions",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 342,
+      "message": "Stock transactions retrieved"
+    },
+    {
+      "name": "Admin GET /admin/sales",
+      "method": "GET",
+      "path": "/admin/sales",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 191,
+      "message": "Sales records retrieved"
+    },
+    {
+      "name": "Admin GET /admin/approvals",
+      "method": "GET",
+      "path": "/admin/approvals",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 179,
+      "message": "Pending sale approval requests retrieved"
+    },
+    {
+      "name": "Admin GET /admin/incentives",
+      "method": "GET",
+      "path": "/admin/incentives",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 909,
+      "message": "Incentive reports retrieved"
+    },
+    {
+      "name": "Admin GET /admin/dashboard",
+      "method": "GET",
+      "path": "/admin/dashboard",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 341,
+      "message": "Super Admin dashboard retrieved"
+    },
+    {
+      "name": "Admin GET /admin/dashboard/filters",
+      "method": "GET",
+      "path": "/admin/dashboard/filters",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 223,
+      "message": "Filter options retrieved"
+    },
+    {
+      "name": "Admin GET /admin/invoices",
+      "method": "GET",
+      "path": "/admin/invoices",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 231,
+      "message": "Invoices retrieved"
+    },
+    {
+      "name": "Admin GET /admin/permissions",
+      "method": "GET",
+      "path": "/admin/permissions",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 77
+    },
+    {
+      "name": "Admin GET /admin/reports/sales",
+      "method": "GET",
+      "path": "/admin/reports/sales",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 351
+    },
+    {
+      "name": "Admin GET /admin/reports/inventory",
+      "method": "GET",
+      "path": "/admin/reports/inventory",
+      "expected": 200,
+      "status": 200,
+      "passed": true,
+      "milliseconds": 327
+    },
+    {
+      "name": "Admin cannot access manager-only route",
+      "method": "GET",
+      "path": "/manager/sellers",
+      "expected": 403,
+      "status": 403,
+      "passed": true,
+      "milliseconds": 49,
+      "message": "Access denied"
+    },
+    {
+      "name": "Admin cannot access seller-only route",
+      "method": "GET",
+      "path": "/seller/profile",
+      "expected": 403,
+      "status": 403,
+      "passed": true,
+      "milliseconds": 54,
+      "message": "Access denied"
+    }
+  ]
+}
