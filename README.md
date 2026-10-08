@@ -89,6 +89,8 @@ The integration suite applies migrations inside a unique inventory_test_<random>
 
 ## API documentation
 
+- [Postman manual testing guide](docs/POSTMAN_MANUAL_TESTING.md) — current mounted routes, required bodies, expected responses, test sequence and negative cases
+- [Manual testing Postman collection](docs/postman-manual-testing.postman_collection.json) — import and send requests individually using the guide
 - [Implemented API](docs/API.md)
 - [OpenAPI document](docs/openapi.json) — import into an OpenAPI-compatible API client; regenerate API.md and OpenAPI with `npm run docs:api`
 - [PRD](docs/PRD.md)
