@@ -34,8 +34,8 @@ if (!input.success) {
       if (!hq) await tx.stockLocation.create({ data: { type: "HQ", name: "HQ" } });
     });
     console.info("Initial Super Admin account created.");
-  } catch {
-    console.error("Bootstrap failed. Check the migration, database connection, and whether the Admin already exists.");
+  } catch (error) {
+    console.error("Bootstrap failed. Error details:", error);
     process.exitCode = 1;
   } finally {
     await database.$disconnect();
