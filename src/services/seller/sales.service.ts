@@ -3,21 +3,11 @@ import type { CreateSaleInput, ListSalesInput } from "../../controller/sales.val
 import { HttpError } from "../../middleware/validation.js";
 import { processInvoicePdf } from "../pdf.service.js";
 
-// Helper function to build date range filters for month boundaries (Asia/Kolkata or UTC)
-export function getPeriodDateRange(period?: "all" | "this_month" | "last_month"): { gte?: Date; lte?: Date } | undefined {
-  if (!period || period === "all") return undefined;
+import { getISTPeriodDateRange } from "../../utils/timezone.utils.js";
 
-  const now = new Date();
-  if (period === "this_month") {
-    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    return { gte: startOfMonth };
-  }
-  if (period === "last_month") {
-    const startOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-    const endOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
-    return { gte: startOfLastMonth, lte: endOfLastMonth };
-  }
-  return undefined;
+// Helper function to build date range filters for month boundaries in Asia/Kolkata (IST UTC+05:30)
+export function getPeriodDateRange(period?: "all" | "this_month" | "last_month"): { gte?: Date; lte?: Date } | undefined {
+  return getISTPeriodDateRange(period);
 }
 
 export function createSellerSalesService(database: PrismaClient) {

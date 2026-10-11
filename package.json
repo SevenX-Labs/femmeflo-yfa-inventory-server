@@ -26,6 +26,7 @@
     "pretest": "prisma generate",
     "test": "tsx --test tests/*.test.ts",
     "test:integration": "prisma generate && tsx --test tests/integration/*.test.ts",
+    "test:postman": "prisma generate && tsx scripts/test-postman.ts",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",

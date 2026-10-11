@@ -1,0 +1,934 @@
+{
+  "executedAt": "2026-10-08T11:12:03.938Z",
+  "source": "docs/postman-manual-testing.postman_collection.json",
+  "collectionExamples": 78,
+  "executedExamples": 78,
+  "checks": 118,
+  "passed": 116,
+  "failed": 2,
+  "untested": [],
+  "results": [
+    {
+      "name": "Check HTTP health",
+      "method": "GET",
+      "path": "/health",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Check database readiness",
+      "method": "GET",
+      "path": "/ready",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Login as admin",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create Manager",
+      "method": "POST",
+      "path": "/admin/managers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Create Seller",
+      "method": "POST",
+      "path": "/admin/sellers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Login as manager",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Login as seller",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create category",
+      "method": "POST",
+      "path": "/admin/categories",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Create customer as seller",
+      "method": "POST",
+      "path": "/seller/customers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Get own stock",
+      "method": "GET",
+      "path": "/seller/inventory",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Receive 100 packets at HQ",
+      "method": "POST",
+      "path": "/admin/inventory/receipts",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Transfer 50 packets to seller",
+      "method": "POST",
+      "path": "/admin/inventory/transfers",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Set price and incentive",
+      "method": "PATCH",
+      "path": "/admin/incentives/settings",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Receipt and transfer conserve total stock",
+      "pass": true
+    },
+    {
+      "name": "Create confirmed unpaid sale",
+      "method": "POST",
+      "path": "/seller/sales",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Confirmed sale totals and stock",
+      "pass": true
+    },
+    {
+      "name": "Collect full pending payment",
+      "method": "PATCH",
+      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea/payment",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Payment does not deduct stock again",
+      "pass": true
+    },
+    {
+      "name": "Create low-price sale for approval",
+      "method": "POST",
+      "path": "/seller/sales",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Pending approval does not deduct stock",
+      "pass": true
+    },
+    {
+      "name": "List pending approvals",
+      "method": "GET",
+      "path": "/admin/approvals",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Approve low-price sale",
+      "method": "POST",
+      "path": "/admin/approvals/94c89658-0c25-4035-b8ca-1d38a6604d4b/approve",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create separate rejection fixture",
+      "method": "POST",
+      "path": "/seller/sales",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Reject a separate low-price sale",
+      "method": "POST",
+      "path": "/admin/approvals/1a91a142-7c62-4185-9f42-639e042bf3ac/reject",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Main flow: stock 35, revenue 35000, incentive 3000, two invoices",
+      "pass": true
+    },
+    {
+      "name": "Get current account",
+      "method": "GET",
+      "path": "/auth/me",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List managers",
+      "method": "GET",
+      "path": "/admin/managers",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get Manager",
+      "method": "GET",
+      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Update Manager",
+      "method": "PATCH",
+      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List sellers",
+      "method": "GET",
+      "path": "/admin/sellers",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get Seller",
+      "method": "GET",
+      "path": "/admin/sellers/2e83368c-efc4-44ea-8d74-bc0428921ee7",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Update Seller",
+      "method": "PATCH",
+      "path": "/admin/sellers/2e83368c-efc4-44ea-8d74-bc0428921ee7",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List permission names",
+      "method": "GET",
+      "path": "/admin/permissions",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Replace Manager permissions",
+      "method": "PATCH",
+      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406/permissions",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Replace Manager permissions",
+      "method": "PATCH",
+      "path": "/admin/permissions/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406/permissions",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List assigned sellers",
+      "method": "GET",
+      "path": "/manager/sellers",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get assigned seller",
+      "method": "GET",
+      "path": "/manager/sellers/2e83368c-efc4-44ea-8d74-bc0428921ee7",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create seller as Manager",
+      "method": "POST",
+      "path": "/manager/sellers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "List categories",
+      "method": "GET",
+      "path": "/admin/categories",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get category",
+      "method": "GET",
+      "path": "/admin/categories/daa4f91e-57ba-4997-b066-be298ebe877a",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Update category",
+      "method": "PATCH",
+      "path": "/admin/categories/daa4f91e-57ba-4997-b066-be298ebe877a",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create category",
+      "method": "POST",
+      "path": "/categories",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "List categories",
+      "method": "GET",
+      "path": "/categories",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get category",
+      "method": "GET",
+      "path": "/categories/0ad1975e-0595-41aa-b1f6-eed6ff699045",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Update category",
+      "method": "PATCH",
+      "path": "/categories/0ad1975e-0595-41aa-b1f6-eed6ff699045",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List customers as seller",
+      "method": "GET",
+      "path": "/seller/customers",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get customer as seller",
+      "method": "GET",
+      "path": "/seller/customers/4dcfd668-5e93-4451-a65e-2280af37c3aa",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Update customer as seller",
+      "method": "PATCH",
+      "path": "/seller/customers/4dcfd668-5e93-4451-a65e-2280af37c3aa",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create customer as manager",
+      "method": "POST",
+      "path": "/manager/customers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "List customers as manager",
+      "method": "GET",
+      "path": "/manager/customers",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get customer as manager",
+      "method": "GET",
+      "path": "/manager/customers/23870e30-9d72-47a5-b0ba-47d193ad0817",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Update customer as manager",
+      "method": "PATCH",
+      "path": "/manager/customers/23870e30-9d72-47a5-b0ba-47d193ad0817",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create customer as admin",
+      "method": "POST",
+      "path": "/admin/customers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "List customers as admin",
+      "method": "GET",
+      "path": "/admin/customers",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get customer as admin",
+      "method": "GET",
+      "path": "/admin/customers/4744aa52-d3a9-45ce-b8f5-01726ddf4128",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Update customer as admin",
+      "method": "PATCH",
+      "path": "/admin/customers/4744aa52-d3a9-45ce-b8f5-01726ddf4128",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get stock summary",
+      "method": "GET",
+      "path": "/admin/inventory",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create warehouse",
+      "method": "POST",
+      "path": "/admin/inventory/warehouses",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "List warehouses",
+      "method": "GET",
+      "path": "/admin/inventory/warehouses",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List all stock movements",
+      "method": "GET",
+      "path": "/admin/inventory/transactions",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List own movements",
+      "method": "GET",
+      "path": "/seller/inventory/transactions",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get assigned sellers stock",
+      "method": "GET",
+      "path": "/manager/inventory",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Read business settings",
+      "method": "GET",
+      "path": "/admin/incentives/settings",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List sales as seller",
+      "method": "GET",
+      "path": "/seller/sales",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get sale as seller",
+      "method": "GET",
+      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List sales as manager",
+      "method": "GET",
+      "path": "/manager/sales",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get sale as manager",
+      "method": "GET",
+      "path": "/manager/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List sales as admin",
+      "method": "GET",
+      "path": "/admin/sales",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get sale as admin",
+      "method": "GET",
+      "path": "/admin/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "List invoices",
+      "method": "GET",
+      "path": "/admin/invoices",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get invoice",
+      "method": "GET",
+      "path": "/admin/invoices/5eaee671-e1fb-493c-b2d7-dd5546441e34",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get own incentives",
+      "method": "GET",
+      "path": "/seller/incentives",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get all seller incentives",
+      "method": "GET",
+      "path": "/admin/incentives",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get seller dashboard",
+      "method": "GET",
+      "path": "/seller/dashboard",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get Manager dashboard",
+      "method": "GET",
+      "path": "/manager/dashboard",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get Admin dashboard",
+      "method": "GET",
+      "path": "/admin/dashboard",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get dashboard filters",
+      "method": "GET",
+      "path": "/admin/dashboard/filters",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get seller profile",
+      "method": "GET",
+      "path": "/seller/profile",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Update own profile",
+      "method": "PATCH",
+      "path": "/seller/profile",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get sales report",
+      "method": "GET",
+      "path": "/admin/reports/sales",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Get inventory report",
+      "method": "GET",
+      "path": "/admin/reports/inventory",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Missing token",
+      "method": "GET",
+      "path": "/seller/inventory",
+      "expected": 401,
+      "status": 401,
+      "pass": true
+    },
+    {
+      "name": "Wrong role",
+      "method": "GET",
+      "path": "/admin/managers",
+      "expected": 403,
+      "status": 403,
+      "pass": true
+    },
+    {
+      "name": "Malformed UUID",
+      "method": "GET",
+      "path": "/admin/sellers/not-a-uuid",
+      "expected": 400,
+      "status": 400,
+      "pass": true
+    },
+    {
+      "name": "Unknown query field",
+      "method": "GET",
+      "path": "/admin/sellers?sort=no",
+      "expected": 400,
+      "status": 400,
+      "pass": true
+    },
+    {
+      "name": "Invalid pagination",
+      "method": "GET",
+      "path": "/admin/sellers?pageSize=101",
+      "expected": 400,
+      "status": 400,
+      "pass": true
+    },
+    {
+      "name": "Zero receipt",
+      "method": "POST",
+      "path": "/admin/inventory/receipts",
+      "expected": 400,
+      "status": 400,
+      "pass": true
+    },
+    {
+      "name": "Self transfer",
+      "method": "POST",
+      "path": "/admin/inventory/transfers",
+      "expected": 400,
+      "status": 400,
+      "pass": true
+    },
+    {
+      "name": "Insufficient transfer stock",
+      "method": "POST",
+      "path": "/admin/inventory/transfers",
+      "expected": 409,
+      "status": 409,
+      "pass": true
+    },
+    {
+      "name": "Repeat approval",
+      "method": "POST",
+      "path": "/admin/approvals/94c89658-0c25-4035-b8ca-1d38a6604d4b/approve",
+      "expected": 409,
+      "status": 409,
+      "pass": true
+    },
+    {
+      "name": "Repeat payment",
+      "method": "PATCH",
+      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea/payment",
+      "expected": 409,
+      "status": 409,
+      "pass": true
+    },
+    {
+      "name": "Invalid payment mode",
+      "method": "PATCH",
+      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea/payment",
+      "expected": 400,
+      "status": 400,
+      "pass": true
+    },
+    {
+      "name": "Duplicate category",
+      "method": "POST",
+      "path": "/admin/categories",
+      "expected": 409,
+      "status": 409,
+      "pass": true
+    },
+    {
+      "name": "Unknown route",
+      "method": "GET",
+      "path": "/does-not-exist",
+      "expected": 404,
+      "status": 404,
+      "pass": true
+    },
+    {
+      "name": "sales export csv",
+      "method": "GET",
+      "path": "/admin/reports/sales?format=csv",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "sales export xlsx",
+      "method": "GET",
+      "path": "/admin/reports/sales?format=xlsx",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "inventory export csv",
+      "method": "GET",
+      "path": "/admin/reports/inventory?format=csv",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "inventory export xlsx",
+      "method": "GET",
+      "path": "/admin/reports/inventory?format=xlsx",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Revoke manager permissions",
+      "method": "PATCH",
+      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406/permissions",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Revoked permission takes effect",
+      "method": "GET",
+      "path": "/manager/sellers",
+      "expected": 403,
+      "status": 403,
+      "pass": true
+    },
+    {
+      "name": "Restore manager permissions",
+      "method": "PATCH",
+      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406/permissions",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Idempotent sale fixture",
+      "method": "POST",
+      "path": "/seller/sales",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Same seller idempotent replay",
+      "method": "POST",
+      "path": "/seller/sales",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Idempotent replay does not deduct stock",
+      "pass": true
+    },
+    {
+      "name": "Second seller login for ownership tests",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Other seller cannot read sale",
+      "method": "GET",
+      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea",
+      "expected": 404,
+      "status": 404,
+      "pass": true
+    },
+    {
+      "name": "Second seller customer fixture",
+      "method": "POST",
+      "path": "/seller/customers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "SECURITY: other seller must not obtain sale via requestKey",
+      "method": "POST",
+      "path": "/seller/sales",
+      "expected": 403,
+      "status": 201,
+      "pass": false,
+      "error": "Sale confirmed successfully\n\n201 !== 403\n"
+    },
+    {
+      "name": "BUSINESS RULE: rejected sale must not accept payment",
+      "method": "PATCH",
+      "path": "/seller/sales/1a91a142-7c62-4185-9f42-639e042bf3ac/payment",
+      "expected": 409,
+      "status": 200,
+      "pass": false,
+      "error": "Pending payment collected successfully\n\n200 !== 409\n"
+    },
+    {
+      "name": "Change seller password",
+      "method": "PATCH",
+      "path": "/auth/password",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Password change invalidates token",
+      "method": "GET",
+      "path": "/auth/me",
+      "expected": 401,
+      "status": 401,
+      "pass": true
+    },
+    {
+      "name": "Request seller password reset",
+      "method": "POST",
+      "path": "/auth/forgot-password",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Reset seller password",
+      "method": "POST",
+      "path": "/auth/reset-password",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Reset token cannot be reused",
+      "method": "POST",
+      "path": "/auth/reset-password",
+      "expected": 400,
+      "status": 400,
+      "pass": true
+    },
+    {
+      "name": "Login as seller",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Deactivate test seller",
+      "method": "PATCH",
+      "path": "/admin/sellers/2e83368c-efc4-44ea-8d74-bc0428921ee7",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Deactivation invalidates token",
+      "method": "GET",
+      "path": "/auth/me",
+      "expected": 401,
+      "status": 401,
+      "pass": true
+    },
+    {
+      "name": "Deactivated login rejected",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 401,
+      "status": 401,
+      "pass": true
+    }
+  ]
+}

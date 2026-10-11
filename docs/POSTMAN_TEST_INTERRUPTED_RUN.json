@@ -1,0 +1,205 @@
+{
+  "executedAt": "2026-10-08T11:09:38.154Z",
+  "source": "docs/postman-manual-testing.postman_collection.json",
+  "collectionExamples": 78,
+  "executedExamples": 15,
+  "checks": 17,
+  "passed": 12,
+  "failed": 5,
+  "untested": [
+    "Get current account",
+    "List managers",
+    "Get Manager",
+    "Update Manager",
+    "List sellers",
+    "Get Seller",
+    "Update Seller",
+    "List permission names",
+    "Replace Manager permissions",
+    "Replace Manager permissions",
+    "List assigned sellers",
+    "Get assigned seller",
+    "Create seller as Manager",
+    "List categories",
+    "Get category",
+    "Update category",
+    "Create category",
+    "List categories",
+    "Get category",
+    "Update category",
+    "List customers as seller",
+    "Get customer as seller",
+    "Update customer as seller",
+    "Create customer as manager",
+    "List customers as manager",
+    "Get customer as manager",
+    "Update customer as manager",
+    "Create customer as admin",
+    "List customers as admin",
+    "Get customer as admin",
+    "Update customer as admin",
+    "Get stock summary",
+    "Create warehouse",
+    "List warehouses",
+    "List all stock movements",
+    "List own movements",
+    "Get assigned sellers stock",
+    "Read business settings",
+    "Create low-price sale for approval",
+    "List sales as seller",
+    "Get sale as seller",
+    "List sales as manager",
+    "Get sale as manager",
+    "List sales as admin",
+    "Get sale as admin",
+    "List pending approvals",
+    "Approve low-price sale",
+    "Reject a separate low-price sale",
+    "List invoices",
+    "Get invoice",
+    "Get own incentives",
+    "Get all seller incentives",
+    "Get seller dashboard",
+    "Get Manager dashboard",
+    "Get Admin dashboard",
+    "Get dashboard filters",
+    "Get seller profile",
+    "Update own profile",
+    "Get sales report",
+    "Get inventory report",
+    "Change seller password",
+    "Request seller password reset",
+    "Reset seller password"
+  ],
+  "results": [
+    {
+      "name": "Check HTTP health",
+      "method": "GET",
+      "path": "/health",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Check database readiness",
+      "method": "GET",
+      "path": "/ready",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Login as admin",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create Manager",
+      "method": "POST",
+      "path": "/admin/managers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Create Seller",
+      "method": "POST",
+      "path": "/admin/sellers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Login as manager",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Login as seller",
+      "method": "POST",
+      "path": "/auth/login",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Create category",
+      "method": "POST",
+      "path": "/admin/categories",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Create customer as seller",
+      "method": "POST",
+      "path": "/seller/customers",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Get own stock",
+      "method": "GET",
+      "path": "/seller/inventory",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Receive 100 packets at HQ",
+      "method": "POST",
+      "path": "/admin/inventory/receipts",
+      "expected": 201,
+      "status": 201,
+      "pass": true
+    },
+    {
+      "name": "Transfer 50 packets to seller",
+      "method": "POST",
+      "path": "/admin/inventory/transfers",
+      "expected": 200,
+      "status": 500,
+      "pass": false,
+      "error": "Internal server error\n\n500 !== 200\n"
+    },
+    {
+      "name": "Set price and incentive",
+      "method": "PATCH",
+      "path": "/admin/incentives/settings",
+      "expected": 200,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "name": "Receipt and transfer conserve total stock",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 50\n"
+    },
+    {
+      "name": "Create confirmed unpaid sale",
+      "method": "POST",
+      "path": "/seller/sales",
+      "expected": 201,
+      "status": 409,
+      "pass": false,
+      "error": "Insufficient stock balance. Available: 0, Requested: 10\n\n409 !== 201\n"
+    },
+    {
+      "name": "Confirmed sale totals and stock",
+      "pass": false,
+      "error": "TypeError: Cannot read properties of undefined (reading 'data')"
+    },
+    {
+      "name": "Runner/setup",
+      "pass": false,
+      "error": "Unresolved collection variable: saleId"
+    }
+  ]
+}
