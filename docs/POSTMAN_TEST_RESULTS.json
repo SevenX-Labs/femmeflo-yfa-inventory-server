@@ -1,11 +1,11 @@
 {
-  "executedAt": "2026-10-08T11:12:03.938Z",
+  "executedAt": "2026-10-11T14:07:24.870Z",
   "source": "docs/postman-manual-testing.postman_collection.json",
   "collectionExamples": 78,
   "executedExamples": 78,
   "checks": 118,
-  "passed": 116,
-  "failed": 2,
+  "passed": 118,
+  "failed": 0,
   "untested": [],
   "results": [
     {
@@ -131,7 +131,7 @@
     {
       "name": "Collect full pending payment",
       "method": "PATCH",
-      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea/payment",
+      "path": "/seller/sales/939e7185-0aac-4816-8604-52526ebd00f1/payment",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -163,7 +163,7 @@
     {
       "name": "Approve low-price sale",
       "method": "POST",
-      "path": "/admin/approvals/94c89658-0c25-4035-b8ca-1d38a6604d4b/approve",
+      "path": "/admin/approvals/0700fa5e-fcf9-4cf6-91d7-5507bb9ea230/approve",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -179,7 +179,7 @@
     {
       "name": "Reject a separate low-price sale",
       "method": "POST",
-      "path": "/admin/approvals/1a91a142-7c62-4185-9f42-639e042bf3ac/reject",
+      "path": "/admin/approvals/943bb286-8be2-46e5-b02e-edf226a7fd2d/reject",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -207,7 +207,7 @@
     {
       "name": "Get Manager",
       "method": "GET",
-      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406",
+      "path": "/admin/managers/f61ca7a6-f097-49fd-bd2b-cc271202509a",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -215,7 +215,7 @@
     {
       "name": "Update Manager",
       "method": "PATCH",
-      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406",
+      "path": "/admin/managers/f61ca7a6-f097-49fd-bd2b-cc271202509a",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -231,7 +231,7 @@
     {
       "name": "Get Seller",
       "method": "GET",
-      "path": "/admin/sellers/2e83368c-efc4-44ea-8d74-bc0428921ee7",
+      "path": "/admin/sellers/5b1d1cc7-2463-45fb-a437-d2c9481641b9",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -239,7 +239,7 @@
     {
       "name": "Update Seller",
       "method": "PATCH",
-      "path": "/admin/sellers/2e83368c-efc4-44ea-8d74-bc0428921ee7",
+      "path": "/admin/sellers/5b1d1cc7-2463-45fb-a437-d2c9481641b9",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -255,7 +255,7 @@
     {
       "name": "Replace Manager permissions",
       "method": "PATCH",
-      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406/permissions",
+      "path": "/admin/managers/f61ca7a6-f097-49fd-bd2b-cc271202509a/permissions",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -263,7 +263,7 @@
     {
       "name": "Replace Manager permissions",
       "method": "PATCH",
-      "path": "/admin/permissions/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406/permissions",
+      "path": "/admin/permissions/managers/f61ca7a6-f097-49fd-bd2b-cc271202509a/permissions",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -279,7 +279,7 @@
     {
       "name": "Get assigned seller",
       "method": "GET",
-      "path": "/manager/sellers/2e83368c-efc4-44ea-8d74-bc0428921ee7",
+      "path": "/manager/sellers/5b1d1cc7-2463-45fb-a437-d2c9481641b9",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -303,7 +303,7 @@
     {
       "name": "Get category",
       "method": "GET",
-      "path": "/admin/categories/daa4f91e-57ba-4997-b066-be298ebe877a",
+      "path": "/admin/categories/30108ba0-869f-4ad1-92bd-8fd0f9f71126",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -311,7 +311,7 @@
     {
       "name": "Update category",
       "method": "PATCH",
-      "path": "/admin/categories/daa4f91e-57ba-4997-b066-be298ebe877a",
+      "path": "/admin/categories/30108ba0-869f-4ad1-92bd-8fd0f9f71126",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -335,7 +335,7 @@
     {
       "name": "Get category",
       "method": "GET",
-      "path": "/categories/0ad1975e-0595-41aa-b1f6-eed6ff699045",
+      "path": "/categories/00eeaff4-5691-4e31-9675-c95b5b2cb8f4",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -343,7 +343,7 @@
     {
       "name": "Update category",
       "method": "PATCH",
-      "path": "/categories/0ad1975e-0595-41aa-b1f6-eed6ff699045",
+      "path": "/categories/00eeaff4-5691-4e31-9675-c95b5b2cb8f4",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -359,7 +359,7 @@
     {
       "name": "Get customer as seller",
       "method": "GET",
-      "path": "/seller/customers/4dcfd668-5e93-4451-a65e-2280af37c3aa",
+      "path": "/seller/customers/62c7c0a8-356a-4cab-9464-f0238fa9fe7a",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -367,7 +367,7 @@
     {
       "name": "Update customer as seller",
       "method": "PATCH",
-      "path": "/seller/customers/4dcfd668-5e93-4451-a65e-2280af37c3aa",
+      "path": "/seller/customers/62c7c0a8-356a-4cab-9464-f0238fa9fe7a",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -391,7 +391,7 @@
     {
       "name": "Get customer as manager",
       "method": "GET",
-      "path": "/manager/customers/23870e30-9d72-47a5-b0ba-47d193ad0817",
+      "path": "/manager/customers/d30eb90c-4b3e-4de3-86cc-f4f5c18239ac",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -399,7 +399,7 @@
     {
       "name": "Update customer as manager",
       "method": "PATCH",
-      "path": "/manager/customers/23870e30-9d72-47a5-b0ba-47d193ad0817",
+      "path": "/manager/customers/d30eb90c-4b3e-4de3-86cc-f4f5c18239ac",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -423,7 +423,7 @@
     {
       "name": "Get customer as admin",
       "method": "GET",
-      "path": "/admin/customers/4744aa52-d3a9-45ce-b8f5-01726ddf4128",
+      "path": "/admin/customers/a2d54601-67d5-4adc-9842-fa1251fbf748",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -431,7 +431,7 @@
     {
       "name": "Update customer as admin",
       "method": "PATCH",
-      "path": "/admin/customers/4744aa52-d3a9-45ce-b8f5-01726ddf4128",
+      "path": "/admin/customers/a2d54601-67d5-4adc-9842-fa1251fbf748",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -503,7 +503,7 @@
     {
       "name": "Get sale as seller",
       "method": "GET",
-      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea",
+      "path": "/seller/sales/939e7185-0aac-4816-8604-52526ebd00f1",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -519,7 +519,7 @@
     {
       "name": "Get sale as manager",
       "method": "GET",
-      "path": "/manager/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea",
+      "path": "/manager/sales/939e7185-0aac-4816-8604-52526ebd00f1",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -535,7 +535,7 @@
     {
       "name": "Get sale as admin",
       "method": "GET",
-      "path": "/admin/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea",
+      "path": "/admin/sales/939e7185-0aac-4816-8604-52526ebd00f1",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -551,7 +551,7 @@
     {
       "name": "Get invoice",
       "method": "GET",
-      "path": "/admin/invoices/5eaee671-e1fb-493c-b2d7-dd5546441e34",
+      "path": "/admin/invoices/cda2e3da-54a9-4f97-80b4-493c9b054ab1",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -703,7 +703,7 @@
     {
       "name": "Repeat approval",
       "method": "POST",
-      "path": "/admin/approvals/94c89658-0c25-4035-b8ca-1d38a6604d4b/approve",
+      "path": "/admin/approvals/0700fa5e-fcf9-4cf6-91d7-5507bb9ea230/approve",
       "expected": 409,
       "status": 409,
       "pass": true
@@ -711,7 +711,7 @@
     {
       "name": "Repeat payment",
       "method": "PATCH",
-      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea/payment",
+      "path": "/seller/sales/939e7185-0aac-4816-8604-52526ebd00f1/payment",
       "expected": 409,
       "status": 409,
       "pass": true
@@ -719,7 +719,7 @@
     {
       "name": "Invalid payment mode",
       "method": "PATCH",
-      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea/payment",
+      "path": "/seller/sales/939e7185-0aac-4816-8604-52526ebd00f1/payment",
       "expected": 400,
       "status": 400,
       "pass": true
@@ -775,7 +775,7 @@
     {
       "name": "Revoke manager permissions",
       "method": "PATCH",
-      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406/permissions",
+      "path": "/admin/managers/f61ca7a6-f097-49fd-bd2b-cc271202509a/permissions",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -791,7 +791,7 @@
     {
       "name": "Restore manager permissions",
       "method": "PATCH",
-      "path": "/admin/managers/9549da61-2bee-4b3c-87a9-53bc6e95a406/permissions",
+      "path": "/admin/managers/f61ca7a6-f097-49fd-bd2b-cc271202509a/permissions",
       "expected": 200,
       "status": 200,
       "pass": true
@@ -827,7 +827,7 @@
     {
       "name": "Other seller cannot read sale",
       "method": "GET",
-      "path": "/seller/sales/35e532a3-95a4-470d-ad60-e1f78491f1ea",
+      "path": "/seller/sales/939e7185-0aac-4816-8604-52526ebd00f1",
       "expected": 404,
       "status": 404,
       "pass": true
@@ -845,18 +845,16 @@
       "method": "POST",
       "path": "/seller/sales",
       "expected": 403,
-      "status": 201,
-      "pass": false,
-      "error": "Sale confirmed successfully\n\n201 !== 403\n"
+      "status": 403,
+      "pass": true
     },
     {
       "name": "BUSINESS RULE: rejected sale must not accept payment",
       "method": "PATCH",
-      "path": "/seller/sales/1a91a142-7c62-4185-9f42-639e042bf3ac/payment",
+      "path": "/seller/sales/943bb286-8be2-46e5-b02e-edf226a7fd2d/payment",
       "expected": 409,
-      "status": 200,
-      "pass": false,
-      "error": "Pending payment collected successfully\n\n200 !== 409\n"
+      "status": 409,
+      "pass": true
     },
     {
       "name": "Change seller password",
@@ -909,7 +907,7 @@
     {
       "name": "Deactivate test seller",
       "method": "PATCH",
-      "path": "/admin/sellers/2e83368c-efc4-44ea-8d74-bc0428921ee7",
+      "path": "/admin/sellers/5b1d1cc7-2463-45fb-a437-d2c9481641b9",
       "expected": 200,
       "status": 200,
       "pass": true

@@ -125,7 +125,7 @@ export function createAdminInventoryService(database: PrismaClient) {
         });
 
         return { source: updatedSource, destination: updatedDestination, movement };
-      });
+      }, { timeout: 30000, maxWait: 10000 });
     },
 
     listTransactions: async (query: ListTransactionsInput) => {

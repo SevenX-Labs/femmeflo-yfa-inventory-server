@@ -11,17 +11,35 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _request, resp
     next(error);
     return;
   }
-  const type = typeof error === "object" && error !== null && "type" in error
-    ? error.type : undefined;
+
+  // 1. Explicit HttpError (validation, business authorization, custom HTTP errors)
   if (error instanceof HttpError) {
     response.status(error.status).json({ success: false, message: error.message });
     return;
   }
+
+  // 2. Multer upload errors
+  if (error && typeof error === "object" && "name" in error && error.name === "MulterError") {
+    const multerError = error as unknown as { code: string; message: string };
+    if (multerError.code === "LIMIT_FILE_SIZE") {
+      response.status(413).json({ success: false, message: "Uploaded file exceeds maximum allowed size" });
+      return;
+    }
+    if (multerError.code === "LIMIT_UNEXPECTED_FILE") {
+      response.status(400).json({ success: false, message: "Unexpected file field in upload request" });
+      return;
+    }
+    response.status(400).json({ success: false, message: multerError.message || "File upload validation error" });
+    return;
+  }
+
+  // 3. Prisma Known Request Errors
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     const errors: Record<string, [number, string]> = {
       P2002: [409, "A record with those unique details already exists"],
       P2003: [409, "Related record does not exist or is still in use"],
       P2025: [404, "Resource not found"],
+      P2028: [409, "Transaction timed out or already completed. Please retry"],
       P2034: [409, "Concurrent update. Please retry"],
     };
     const mapped = errors[error.code];
@@ -30,6 +48,9 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _request, resp
       return;
     }
   }
+
+  // 4. Express body-parser error types
+  const type = typeof error === "object" && error !== null && "type" in error ? (error as { type: string }).type : undefined;
   if (type === "entity.parse.failed") {
     response.status(400).json({ success: false, message: "Request body must be valid JSON" });
     return;
@@ -42,7 +63,13 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _request, resp
     response.status(415).json({ success: false, message: "Unsupported request encoding" });
     return;
   }
-  // Do not expose request data, database errors or secrets to API consumers/logs.
-  console.error("An unexpected request error occurred");
+
+  // 5. Unhandled / unexpected errors: keep dev logs useful, keep production safe
+  if (process.env.NODE_ENV !== "production") {
+    console.error("An unexpected request error occurred:", error);
+  } else {
+    console.error("An unexpected request error occurred");
+  }
+
   response.status(500).json({ success: false, message: "Internal server error" });
 };

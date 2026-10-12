@@ -21,3 +21,5 @@ export function requireAuthentication(auth: AuthService): RequestHandler {
     }
   };
 }
+
+export const authenticate = requireAuthentication;

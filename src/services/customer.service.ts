@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import type { CreateCustomerInput, ListCustomersInput, UpdateCustomerInput } from "../controller/customer.validation.js";
 import { HttpError } from "../middleware/validation.js";
+import { uploadCustomerPhoto } from "./storage.service.js";
 
 export type UserContext = {
   id: string;
@@ -222,6 +223,37 @@ export function createCustomerService(database: PrismaClient) {
           seller: { select: { id: true, name: true, phone: true } },
         },
       });
+    },
+
+    uploadPhoto: async (user: UserContext, id: string, file: Express.Multer.File) => {
+      const existing = await database.customer.findUnique({
+        where: { id },
+        include: { seller: { select: { id: true, managerId: true } } },
+      });
+
+      if (!existing) {
+        throw new HttpError(404, "Customer not found");
+      }
+
+      if (user.role === "SELLER" && existing.sellerId !== user.id) {
+        throw new HttpError(403, "Customer is not assigned to you");
+      }
+      if (user.role === "MANAGER" && existing.seller.managerId !== user.id) {
+        throw new HttpError(403, "Customer is not under your assigned sellers");
+      }
+
+      const uploadResult = await uploadCustomerPhoto(id, file.buffer, file.mimetype, existing.photoPath);
+
+      const customer = await database.customer.update({
+        where: { id },
+        data: { photoPath: uploadResult.publicUrl },
+        include: {
+          category: { select: { id: true, name: true } },
+          seller: { select: { id: true, name: true, phone: true } },
+        },
+      });
+
+      return { customer, photoUrl: uploadResult.publicUrl };
     },
   };
 }

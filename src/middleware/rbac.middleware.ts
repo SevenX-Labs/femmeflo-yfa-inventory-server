@@ -5,6 +5,15 @@ import { ALL_PERMISSIONS, type Permission } from "../constants/permissions.js";
 export const managerPermissions = ALL_PERMISSIONS;
 export type ManagerPermission = Permission;
 
+export type SupportedRole = Role | "Admin" | "Manager" | "Seller";
+
+function normalizeRole(role: SupportedRole): Role {
+  if (role === "Admin") return "SUPER_ADMIN";
+  if (role === "Manager") return "MANAGER";
+  if (role === "Seller") return "SELLER";
+  return role;
+}
+
 export function requirePermission(permission: Permission): RequestHandler {
   return (_request, response, next) => {
     const user = response.locals.authUser as PublicUser | undefined;
@@ -39,14 +48,15 @@ export function requireAnyPermission(permissions: Permission[]): RequestHandler 
   };
 }
 
-export function requireRole(...roles: Role[]): RequestHandler {
+export function requireRole(...roles: SupportedRole[]): RequestHandler {
+  const normalized = roles.map(normalizeRole);
   return (_request, response, next) => {
     const user = response.locals.authUser as PublicUser | undefined;
     if (!user) {
       response.status(401).json({ success: false, message: "Authentication required" });
       return;
     }
-    if (!roles.includes(user.role)) {
+    if (!normalized.includes(user.role)) {
       response.status(403).json({ success: false, message: "Access denied" });
       return;
     }
@@ -54,3 +64,4 @@ export function requireRole(...roles: Role[]): RequestHandler {
   };
 }
 
+export const authorize = requireRole;

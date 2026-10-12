@@ -13,6 +13,24 @@ const environmentSchema = z.object({
   CORS_ORIGINS: z.string().default("http://localhost:3000")
     .transform((value) => value.split(",").map((origin) => origin.trim()))
     .pipe(z.array(originSchema).min(1)),
+  // Storage configuration
+  SUPABASE_URL: z.string().trim().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().trim().optional(),
+  SUPABASE_CUSTOMER_BUCKET: z.string().trim().default("customer-photos"),
+  MAX_PHOTO_SIZE_MB: z.coerce.number().min(1).max(50).default(5),
+  // Email provider configuration
+  EMAIL_PROVIDER: z.enum(["resend", "mock"]).default("mock"),
+  RESEND_API_KEY: z.string().trim().optional(),
+  EMAIL_FROM: z.string().trim().default("noreply@femmeflo.com"),
+  // WhatsApp provider configuration
+  WHATSAPP_PROVIDER: z.enum(["twilio", "msg91", "mock"]).default("mock"),
+  TWILIO_ACCOUNT_SID: z.string().trim().optional(),
+  TWILIO_AUTH_TOKEN: z.string().trim().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().trim().optional(),
+  MSG91_AUTH_KEY: z.string().trim().optional(),
+  MSG91_INTEGRATED_NUMBER: z.string().trim().optional(),
+  // Retry configuration
+  NOTIFICATION_MAX_RETRIES: z.coerce.number().int().min(1).max(10).default(3),
 });
 
 export function loadEnvironment(values: NodeJS.ProcessEnv = process.env) {
@@ -44,3 +62,5 @@ export function loadAuthEnvironment(values: NodeJS.ProcessEnv = process.env) {
   }
   return result.data;
 }
+
+export type Environment = z.infer<typeof environmentSchema>;

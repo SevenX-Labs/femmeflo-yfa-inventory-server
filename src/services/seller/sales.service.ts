@@ -34,7 +34,12 @@ export function createSellerSalesService(database: PrismaClient) {
       // Check for duplicate requestKey if provided
       if (input.requestKey) {
         const existingSale = await database.sale.findUnique({ where: { requestKey: input.requestKey } });
-        if (existingSale) return existingSale;
+        if (existingSale) {
+          if (existingSale.sellerId !== sellerId) {
+            throw new HttpError(403, "Request key belongs to another seller");
+          }
+          return existingSale;
+        }
       }
 
       const totalPaise = input.quantity * input.unitPricePaise;
@@ -187,7 +192,7 @@ export function createSellerSalesService(database: PrismaClient) {
         }
 
         return { sale, invoice };
-      });
+      }, { timeout: 30000, maxWait: 10000 });
 
       const pdfPath = await processInvoicePdf(database, result.invoice.id).catch(() => null);
       const invoice = pdfPath ? { ...result.invoice, pdfPath } : result.invoice;
@@ -261,6 +266,12 @@ export function createSellerSalesService(database: PrismaClient) {
 
       if (!sale || sale.sellerId !== sellerId) {
         throw new HttpError(404, "Sale record not found");
+      }
+      if (sale.status === "REJECTED") {
+        throw new HttpError(409, "Cannot collect payment for a rejected sale");
+      }
+      if (sale.status !== "CONFIRMED") {
+        throw new HttpError(409, `Payment cannot be collected for sale in ${sale.status} status`);
       }
       if (sale.paymentMode !== "PENDING") {
         throw new HttpError(409, `Payment for this sale has already been set to ${sale.paymentMode}`);

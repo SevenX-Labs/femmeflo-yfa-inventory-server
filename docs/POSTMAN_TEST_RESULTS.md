@@ -1,10 +1,10 @@
 # Automated Postman documentation test results
 
-Executed: 2026-10-08T11:12:03.938Z
+Executed: 2026-10-11T14:07:24.870Z
 
 Real HTTP requests against the application and a disposable PostgreSQL schema with all migrations. Existing application records were not modified.
 
-Collection examples executed: 78/78. Checks: 118; passed: 116; failed: 2.
+Collection examples executed: 78/78. Checks: 118; passed: 118; failed: 0.
 
 Rerun: `npm.cmd run test:postman` (requires TEST_DATABASE_URL in .env).
 
@@ -119,8 +119,8 @@ Checks assert collection HTTP status/success, the main flow stock and financial 
 | Second seller login for ownership tests | 200 | 200 | PASS |  |
 | Other seller cannot read sale | 404 | 404 | PASS |  |
 | Second seller customer fixture | 201 | 201 | PASS |  |
-| SECURITY: other seller must not obtain sale via requestKey | 403 | 201 | FAIL | Sale confirmed successfully  201 !== 403  |
-| BUSINESS RULE: rejected sale must not accept payment | 409 | 200 | FAIL | Pending payment collected successfully  200 !== 409  |
+| SECURITY: other seller must not obtain sale via requestKey | 403 | 403 | PASS |  |
+| BUSINESS RULE: rejected sale must not accept payment | 409 | 409 | PASS |  |
 | Change seller password | 200 | 200 | PASS |  |
 | Password change invalidates token | 401 | 401 | PASS |  |
 | Request seller password reset | 200 | 200 | PASS |  |

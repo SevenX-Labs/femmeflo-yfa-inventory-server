@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { emailSchema, phoneSchema } from "../middleware/validation.js";
-
-import { isValidIndianCoordinate } from "../utils/geo.utils.js";
+import { validateCoordinates } from "../utils/geo.utils.js";
 
 const location = z.string().trim().min(1).max(100);
 
@@ -18,25 +17,28 @@ export const createCustomerSchema = z.strictObject({
   photoPath: z.string().trim().max(500).optional(),
   photoUrl: z.string().trim().max(500).optional(),
   imageUrl: z.string().trim().max(500).optional(),
-  latitude: z.coerce.number().min(-90).max(90).optional(),
-  longitude: z.coerce.number().min(-180).max(180).optional(),
+  latitude: z.union([z.number(), z.string()]).optional(),
+  longitude: z.union([z.number(), z.string()]).optional(),
 })
-.refine(
-  (data) => {
-    if (data.latitude !== undefined && data.longitude !== undefined) {
-      return isValidIndianCoordinate(data.latitude, data.longitude);
-    }
-    if ((data.latitude !== undefined && data.longitude === undefined) || (data.latitude === undefined && data.longitude !== undefined)) {
-      return false;
-    }
-    return true;
-  },
-  { message: "Both latitude and longitude must be provided and must be valid coordinates within India" }
-)
-.transform((data) => ({
-  ...data,
-  photoPath: data.photoPath ?? data.photoUrl ?? data.imageUrl,
-}));
+.superRefine((data, ctx) => {
+  const result = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
+  if (!result.valid && result.error) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: result.error,
+      path: ["coordinates"],
+    });
+  }
+})
+.transform((data) => {
+  const coords = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
+  return {
+    ...data,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    photoPath: data.photoPath ?? data.photoUrl ?? data.imageUrl,
+  };
+});
 
 export const updateCustomerSchema = z.strictObject({
   shopName: z.string().trim().min(1).max(100).optional(),
@@ -51,26 +53,28 @@ export const updateCustomerSchema = z.strictObject({
   photoPath: z.string().trim().max(500).optional(),
   photoUrl: z.string().trim().max(500).optional(),
   imageUrl: z.string().trim().max(500).optional(),
-  latitude: z.coerce.number().min(-90).max(90).optional(),
-  longitude: z.coerce.number().min(-180).max(180).optional(),
+  latitude: z.union([z.number(), z.string()]).optional(),
+  longitude: z.union([z.number(), z.string()]).optional(),
   active: z.boolean().optional(),
-}).refine((value) => Object.keys(value).length > 0, "Provide at least one field")
-.refine(
-  (data) => {
-    if (data.latitude !== undefined && data.longitude !== undefined) {
-      return isValidIndianCoordinate(data.latitude, data.longitude);
-    }
-    if ((data.latitude !== undefined && data.longitude === undefined) || (data.latitude === undefined && data.longitude !== undefined)) {
-      return false;
-    }
-    return true;
-  },
-  { message: "Both latitude and longitude must be provided together and must be valid coordinates within India" }
-)
+})
+.refine((value) => Object.keys(value).length > 0, "Provide at least one field")
+.superRefine((data, ctx) => {
+  const result = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
+  if (!result.valid && result.error) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: result.error,
+      path: ["coordinates"],
+    });
+  }
+})
 .transform((data) => {
+  const coords = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
   const photo = data.photoPath ?? data.photoUrl ?? data.imageUrl;
   return {
     ...data,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
     photoPath: photo !== undefined ? photo : data.photoPath,
   };
 });

@@ -5,6 +5,7 @@ import type { PrismaClient } from "../../generated/prisma/client.js";
 import { authUserSelect, toPublicUser } from "./auth.types.js";
 import { HttpError } from "../../middleware/validation.js";
 import { z } from "zod";
+import type { NotificationService } from "../notification/notification.service.js";
 
 const issuer = "femmeflo-inventory-api";
 const audience = "femmeflo-inventory-frontend";
@@ -18,6 +19,7 @@ export class AuthenticationError extends Error {
 export function createAuthService(
   database: PrismaClient,
   config: { secret: string; expiresIn: keyof typeof expiresInSeconds },
+  notificationService?: NotificationService
 ) {
   return {
     async login(login: string, password: string) {
@@ -76,13 +78,15 @@ export function createAuthService(
       if (user && user.active) {
         rawToken = randomBytes(32).toString("hex");
         const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-        const expiresAt = new Date(Date.now() + 20 * 60 * 1000); // 20 mins
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiration
 
+        // Invalidate previous active reset tokens for this user
         await database.passwordReset.updateMany({
           where: { userId: user.id, usedAt: null },
           data: { usedAt: new Date() },
         });
 
+        // Store hashed token only in database
         await database.passwordReset.create({
           data: {
             userId: user.id,
@@ -90,19 +94,25 @@ export function createAuthService(
             expiresAt,
           },
         });
+
+        // Send reset email via notification service if user has an email
+        if (user.email && notificationService) {
+          await notificationService.sendPasswordResetEmail(user.email, rawToken, user.name);
+        }
       }
 
-      const isDev = process.env.NODE_ENV !== "production";
+      // Return generic success message without leaking whether user exists
+      const isTestOrDev = process.env.NODE_ENV !== "production";
       return {
         success: true,
-        message: "If an account exists, a password reset request has been created.",
-        ...(isDev && rawToken ? { debugToken: rawToken } : {}),
+        message: "If an account matches those details, instructions to reset your password have been sent.",
+        ...(isTestOrDev && rawToken ? { debugToken: rawToken } : {}),
       };
     },
 
     async resetPassword(rawToken: string, newPassword: string) {
       if (Buffer.byteLength(newPassword, "utf8") > 72) {
-        throw new HttpError(400, "Password exceeds maximum allowed length");
+        throw new HttpError(400, "Password exceeds maximum allowed length of 72 bytes");
       }
       const tokenHash = createHash("sha256").update(rawToken).digest("hex");
 
@@ -122,6 +132,7 @@ export function createAuthService(
       const passwordHash = await bcrypt.hash(newPassword, 12);
 
       await database.$transaction([
+        // Update password and increment tokenVersion to revoke active sessions
         database.user.update({
           where: { id: resetRecord.userId },
           data: {
@@ -129,10 +140,12 @@ export function createAuthService(
             tokenVersion: { increment: 1 },
           },
         }),
+        // Mark reset token as used immediately to prevent token reuse
         database.passwordReset.update({
           where: { id: resetRecord.id },
           data: { usedAt: new Date() },
         }),
+        // Invalidate any other active reset tokens for this user
         database.passwordReset.updateMany({
           where: { userId: resetRecord.userId, usedAt: null },
           data: { usedAt: new Date() },
@@ -145,4 +158,3 @@ export function createAuthService(
 }
 
 export type AuthService = ReturnType<typeof createAuthService>;
-

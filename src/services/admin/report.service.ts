@@ -1,22 +1,6 @@
 import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
 import type { SalesReportQueryInput, InventoryReportQueryInput } from "../../controller/report.validation.js";
-
-function parseDateRange(from?: string, to?: string): { gte?: Date; lte?: Date } | undefined {
-  if (!from && !to) return undefined;
-  const range: { gte?: Date; lte?: Date } = {};
-  if (from) {
-    const d = new Date(from);
-    if (!isNaN(d.getTime())) range.gte = d;
-  }
-  if (to) {
-    const d = new Date(to);
-    if (!to.includes("T")) {
-      d.setUTCHours(23, 59, 59, 999);
-    }
-    if (!isNaN(d.getTime())) range.lte = d;
-  }
-  return Object.keys(range).length > 0 ? range : undefined;
-}
+import { parseISTDateRange } from "../../utils/timezone.utils.js";
 
 export function createAdminReportService(database: PrismaClient) {
   return {
@@ -32,7 +16,7 @@ export function createAdminReportService(database: PrismaClient) {
       if (query.paymentMode) where.paymentMode = query.paymentMode;
       if (query.sellerId) where.sellerId = query.sellerId;
 
-      const dateRange = parseDateRange(query.from, query.to);
+      const dateRange = parseISTDateRange(query.from, query.to);
       if (dateRange) where.createdAt = dateRange;
 
       const customerWhere: Prisma.CustomerWhereInput = {};
@@ -107,7 +91,7 @@ export function createAdminReportService(database: PrismaClient) {
     },
 
     getInventoryReport: async (query: InventoryReportQueryInput) => {
-      const dateRange = parseDateRange(query.from, query.to);
+      const dateRange = parseISTDateRange(query.from, query.to);
 
       // Fetch stock locations
       const locationWhere: Prisma.StockLocationWhereInput = {};

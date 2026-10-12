@@ -168,7 +168,7 @@ export function createAdminApprovalService(database: PrismaClient) {
         });
 
         return { updatedSale, invoice };
-      });
+      }, { timeout: 30000, maxWait: 10000 });
 
       // Process Invoice PDF after transaction completes
       const pdfPath = await processInvoicePdf(database, result.invoice.id).catch(() => null);

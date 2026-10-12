@@ -101,7 +101,15 @@ test("CORS does not permit unlisted origins", async () => {
 
 test("configuration supplies development defaults", () => {
   assert.deepEqual(loadEnvironment({}), {
-    NODE_ENV: "development", PORT: 5000, CORS_ORIGINS: ["http://localhost:3000"],
+    NODE_ENV: "development",
+    PORT: 5000,
+    CORS_ORIGINS: ["http://localhost:3000"],
+    SUPABASE_CUSTOMER_BUCKET: "customer-photos",
+    MAX_PHOTO_SIZE_MB: 5,
+    EMAIL_PROVIDER: "mock",
+    EMAIL_FROM: "noreply@femmeflo.com",
+    WHATSAPP_PROVIDER: "mock",
+    NOTIFICATION_MAX_RETRIES: 3,
   });
 });
 

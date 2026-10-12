@@ -171,6 +171,38 @@ const options: swaggerJsdoc.Options = {
         },
       },
 
+      "/seller/customers/{id}/photo": {
+        post: {
+          summary: "Upload Customer Storefront Photo",
+          tags: ["Customers"],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "multipart/form-data": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    photo: {
+                      type: "string",
+                      format: "binary",
+                      description: "Image file (JPEG, PNG, WebP up to 5MB)",
+                    },
+                  },
+                  required: ["photo"],
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Photo uploaded and customer updated successfully" },
+            400: { description: "Invalid coordinate or photo file missing" },
+            403: { description: "Forbidden or customer outside assigned scope" },
+            413: { description: "Photo file exceeds maximum size limit" },
+            415: { description: "Unsupported photo MIME type" },
+          },
+        },
+      },
     },
   },
   apis: [],
