@@ -47,7 +47,7 @@ async function start() {
   }
 }
 
-start().catch(() => {
-  console.error("Startup failed. Check database settings and connectivity.");
+start().catch((error) => {
+  console.error("Startup failed:", error);
   process.exitCode = 1;
 });

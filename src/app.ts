@@ -25,6 +25,17 @@ export function createApp({ corsOrigins, requestLogging = true, authRoutes, user
   }
   app.use(express.json({ limit: "100kb" }));
   setupSwagger(app);
+  app.get("/", (_request, response) => {
+    response.json({
+      success: true,
+      message: "Server is ready",
+      data: {
+        status: "ok",
+        database: checkDatabase ? "configured" : "not_configured",
+      },
+    });
+  });
+
   app.get("/api/v1/health", (_request, response) => {
     response.json({
       success: true,
