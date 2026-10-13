@@ -48,7 +48,11 @@ const authEnvironmentSchema = z.object({
     return ["postgres:", "postgresql:"].includes(new URL(value).protocol);
   }, "Use a PostgreSQL connection URL"),
   JWT_SECRET: z.string().trim().min(32),
-  JWT_EXPIRES_IN: z.enum(["15m", "1h", "8h", "1d"]).default("1h"),
+  JWT_EXPIRES_IN: z
+    .string()
+    .trim()
+    .regex(/^(\d+)([smhd])$/, "Use duration format such as 15m, 1h, 5h, 1d")
+    .default("1h"),
 });
 
 export function loadAuthEnvironment(values: NodeJS.ProcessEnv = process.env) {

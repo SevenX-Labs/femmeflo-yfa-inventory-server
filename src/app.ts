@@ -10,11 +10,23 @@ type AppOptions = {
   corsOrigins: string[];
   requestLogging?: boolean;
   authRoutes?: Router | undefined;
+  adminAuthRoutes?: Router | undefined;
+  managerAuthRoutes?: Router | undefined;
+  sellerAuthRoutes?: Router | undefined;
   userRoutes?: Router | undefined;
   checkDatabase?: (() => Promise<void>) | undefined;
 };
 
-export function createApp({ corsOrigins, requestLogging = true, authRoutes, userRoutes, checkDatabase }: AppOptions) {
+export function createApp({
+  corsOrigins,
+  requestLogging = true,
+  authRoutes,
+  adminAuthRoutes,
+  managerAuthRoutes,
+  sellerAuthRoutes,
+  userRoutes,
+  checkDatabase,
+}: AppOptions) {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
@@ -59,6 +71,16 @@ export function createApp({ corsOrigins, requestLogging = true, authRoutes, user
   else app.use("/api/v1/auth", (_request, response) => {
     response.status(503).json({ success: false, message: "Authentication service is not configured" });
   });
+  if (adminAuthRoutes) {
+    app.use("/api/v1/admin/auth", adminAuthRoutes);
+  }
+  if (managerAuthRoutes) {
+    app.use("/api/v1/manager/auth", managerAuthRoutes);
+    app.use("/api/v1/manger/auth", managerAuthRoutes);
+  }
+  if (sellerAuthRoutes) {
+    app.use("/api/v1/seller/auth", sellerAuthRoutes);
+  }
   if (userRoutes) app.use("/api/v1", userRoutes);
   app.use(notFound);
   app.use(errorHandler);

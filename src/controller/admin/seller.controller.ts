@@ -10,7 +10,7 @@ export function createAdminSellerController(service: ReturnType<typeof createAdm
   };
   const list: RequestHandler = async (request, response) => {
     const data = await service.list(parseInput(listUsersSchema, request.query));
-    response.json({ success: true, message: "Sellers retrieved", data });
+    response.json({ success: true, message: "Sellers retrieved", data: { ...data, sellers: data.items } });
   };
   const get: RequestHandler = async (request, response) => {
     const user = await service.get(parseInput(idSchema, request.params.id));

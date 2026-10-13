@@ -22,3 +22,7 @@ skills-lock.json
 public/storage/
 public/invoices/
 
+# Test output results
+*-results.json
+
+

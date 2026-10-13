@@ -9,7 +9,29 @@ import type { NotificationService } from "../notification/notification.service.j
 
 const issuer = "femmeflo-inventory-api";
 const audience = "femmeflo-inventory-frontend";
-const expiresInSeconds = { "15m": 900, "1h": 3600, "8h": 28_800, "1d": 86_400 } as const;
+const defaultExpiresInSeconds: Record<string, number> = {
+  "15m": 900,
+  "1h": 3600,
+  "5h": 18_000,
+  "8h": 28_800,
+  "1d": 86_400,
+};
+
+export function parseExpiresInSeconds(val: string): number {
+  if (val in defaultExpiresInSeconds && defaultExpiresInSeconds[val] !== undefined) {
+    return defaultExpiresInSeconds[val]!;
+  }
+  const match = val.match(/^(\d+)([smhd])$/);
+  if (!match || !match[1] || !match[2]) return 3600;
+  const count = parseInt(match[1], 10);
+  const unit = match[2];
+  if (unit === "s") return count;
+  if (unit === "m") return count * 60;
+  if (unit === "h") return count * 3600;
+  if (unit === "d") return count * 86400;
+  return 3600;
+}
+
 const dummyHash = bcrypt.hash(randomBytes(32).toString("hex"), 12);
 
 export class AuthenticationError extends Error {
@@ -18,9 +40,11 @@ export class AuthenticationError extends Error {
 
 export function createAuthService(
   database: PrismaClient,
-  config: { secret: string; expiresIn: keyof typeof expiresInSeconds },
+  config: { secret: string; expiresIn: string },
   notificationService?: NotificationService
 ) {
+  const tokenDuration = parseExpiresInSeconds(config.expiresIn);
+
   return {
     async login(login: string, password: string) {
       const normalizedLogin = login.includes("@") ? login.trim().toLowerCase() : login.trim();
@@ -34,9 +58,9 @@ export function createAuthService(
       }
       const token = jwt.sign(
         { version: user.tokenVersion }, config.secret,
-        { algorithm: "HS256", issuer, audience, subject: user.id, expiresIn: expiresInSeconds[config.expiresIn] },
+        { algorithm: "HS256", issuer, audience, subject: user.id, expiresIn: tokenDuration },
       );
-      return { token, tokenType: "Bearer" as const, expiresInSeconds: expiresInSeconds[config.expiresIn], user: toPublicUser(user) };
+      return { token, tokenType: "Bearer" as const, expiresInSeconds: tokenDuration, user: toPublicUser(user) };
     },
 
     async authenticate(token: string) {

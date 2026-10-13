@@ -10,7 +10,7 @@ export function createManagerController(service: ReturnType<typeof createManager
   };
   const list: RequestHandler = async (request, response) => {
     const data = await service.list(parseInput(listUsersSchema, request.query));
-    response.json({ success: true, message: "Managers retrieved", data });
+    response.json({ success: true, message: "Managers retrieved", data: { ...data, managers: data.items } });
   };
   const get: RequestHandler = async (request, response) => {
     const user = await service.get(parseInput(idSchema, request.params.id));

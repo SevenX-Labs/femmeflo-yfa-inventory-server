@@ -11,7 +11,7 @@ export function createCategoryController(service: CategoryService) {
       response.json({
         success: true,
         message: "Categories retrieved",
-        data: { items: categories },
+        data: { items: categories, categories },
       });
     },
 

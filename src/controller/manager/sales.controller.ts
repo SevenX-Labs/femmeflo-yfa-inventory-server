@@ -13,7 +13,7 @@ export function createManagerSalesController(service: ManagerSalesService) {
       response.json({
         success: true,
         message: "Assigned sales records retrieved",
-        data: result,
+        data: { ...result, sales: result.items },
       });
     },
 

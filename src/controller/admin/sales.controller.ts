@@ -11,7 +11,7 @@ export function createAdminSalesController(service: AdminSalesService) {
       response.json({
         success: true,
         message: "Sales records retrieved",
-        data: result,
+        data: { ...result, sales: result.items },
       });
     },
 

@@ -37,6 +37,42 @@ export function createAuthController(auth: AuthService) {
     }
   };
 
+  const createRoleLogin = (expectedRole: "SUPER_ADMIN" | "MANAGER" | "SELLER", label: string): RequestHandler => {
+    return async (request, response, next) => {
+      const parsed = loginBody.safeParse(request.body);
+      if (!parsed.success) {
+        response.status(400).json({ success: false, message: "Provide login and password" });
+        return;
+      }
+      try {
+        const data = await auth.login(parsed.data.login, parsed.data.password);
+        if (expectedRole === "SUPER_ADMIN" && data.user.role !== "SUPER_ADMIN") {
+          response.status(403).json({ success: false, message: `Access denied. ${label} role required.` });
+          return;
+        }
+        if (expectedRole === "MANAGER" && data.user.role !== "MANAGER" && data.user.role !== "SUPER_ADMIN") {
+          response.status(403).json({ success: false, message: `Access denied. ${label} role required.` });
+          return;
+        }
+        if (expectedRole === "SELLER" && data.user.role !== "SELLER") {
+          response.status(403).json({ success: false, message: `Access denied. ${label} role required.` });
+          return;
+        }
+        response.json({ success: true, message: `${label} login successful`, data });
+      } catch (error) {
+        if (error instanceof AuthenticationError) {
+          response.status(401).json({ success: false, message: error.message });
+          return;
+        }
+        next(error);
+      }
+    };
+  };
+
+  const adminLogin = createRoleLogin("SUPER_ADMIN", "Admin");
+  const managerLogin = createRoleLogin("MANAGER", "Manager");
+  const sellerLogin = createRoleLogin("SELLER", "Seller");
+
   const me: RequestHandler = (_request, response) => {
     const user = response.locals.authUser as PublicUser;
     response.json({ success: true, message: "Current user", data: { user } });
@@ -60,6 +96,6 @@ export function createAuthController(auth: AuthService) {
     response.json(result);
   };
 
-  return { login, me, changePassword, forgotPassword, resetPassword };
+  return { login, adminLogin, managerLogin, sellerLogin, me, changePassword, forgotPassword, resetPassword };
 }
 

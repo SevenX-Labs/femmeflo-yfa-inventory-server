@@ -11,7 +11,7 @@ export function createManagerSellerController(service: ReturnType<typeof createM
   };
   const list: RequestHandler = async (request, response) => {
     const data = await service.list(response.locals.authUser as PublicUser, parseInput(listUsersSchema, request.query));
-    response.json({ success: true, message: "Assigned Sellers retrieved", data });
+    response.json({ success: true, message: "Assigned Sellers retrieved", data: { ...data, sellers: data.items } });
   };
   const get: RequestHandler = async (request, response) => {
     const user = await service.get(response.locals.authUser as PublicUser, parseInput(idSchema, request.params.id));

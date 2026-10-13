@@ -23,7 +23,7 @@ export function createSellerInventoryController(service: SellerInventoryService)
       response.json({
         success: true,
         message: "Transactions retrieved",
-        data,
+        data: { ...data, transactions: data.items },
       });
     },
   };

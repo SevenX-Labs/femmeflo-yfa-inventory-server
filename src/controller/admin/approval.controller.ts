@@ -12,7 +12,7 @@ export function createAdminApprovalController(service: AdminApprovalService) {
       response.json({
         success: true,
         message: "Pending sale approval requests retrieved",
-        data: result,
+        data: { ...result, pendingSales: result.items },
       });
     },
 

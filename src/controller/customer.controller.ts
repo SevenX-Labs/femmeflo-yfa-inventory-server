@@ -13,7 +13,7 @@ export function createCustomerController(service: CustomerService) {
       response.json({
         success: true,
         message: "Customers retrieved",
-        data: result,
+        data: { ...result, customers: result.items },
       });
     },
 

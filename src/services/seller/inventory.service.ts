@@ -39,9 +39,13 @@ export function createSellerInventoryService(database: PrismaClient) {
       return {
         locationId: location.id,
         name: location.name,
+        locationName: location.name,
         assigned: totalAssigned,
+        assignedPackets: totalAssigned,
         sold: totalSold,
+        soldPackets: totalSold,
         remaining: location.balance,
+        balance: location.balance,
       };
     },
 

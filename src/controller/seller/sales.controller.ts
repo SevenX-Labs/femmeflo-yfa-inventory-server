@@ -25,7 +25,7 @@ export function createSellerSalesController(service: SellerSalesService) {
       response.json({
         success: true,
         message: "Sales history retrieved",
-        data: result,
+        data: { ...result, sales: result.items },
       });
     },
 

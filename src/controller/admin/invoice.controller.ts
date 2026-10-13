@@ -17,7 +17,7 @@ export function createAdminInvoiceController(service: AdminInvoiceService) {
       response.json({
         success: true,
         message: "Invoices retrieved",
-        data: result,
+        data: { ...result, invoices: result.items },
       });
     },
 

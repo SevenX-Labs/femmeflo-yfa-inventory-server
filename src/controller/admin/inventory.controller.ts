@@ -8,10 +8,17 @@ export function createAdminInventoryController(service: AdminInventoryService) {
   return {
     getSummary: async (_request: Request, response: Response) => {
       const summary = await service.getSummary();
+      const warehouses = summary.locations.filter((l) => l.type === "WAREHOUSE" || l.type === "HQ");
+      const sellers = summary.locations.filter((l) => l.type === "SELLER");
       response.json({
         success: true,
         message: "Inventory summary retrieved",
-        data: summary,
+        data: {
+          ...summary,
+          totalInventory: summary.totalStock,
+          warehouses: summary.locations,
+          sellers,
+        },
       });
     },
 
@@ -30,7 +37,7 @@ export function createAdminInventoryController(service: AdminInventoryService) {
       response.json({
         success: true,
         message: "Warehouses retrieved",
-        data: { items: warehouses },
+        data: { items: warehouses, warehouses },
       });
     },
 
@@ -62,7 +69,7 @@ export function createAdminInventoryController(service: AdminInventoryService) {
       response.json({
         success: true,
         message: "Stock transactions retrieved",
-        data: result,
+        data: { ...result, transactions: result.items },
       });
     },
   };

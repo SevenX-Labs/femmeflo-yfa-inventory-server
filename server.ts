@@ -1,7 +1,7 @@
 import { createApp } from "./src/app.js";
 import { createDatabase } from "./src/config/database.js";
 import { loadAuthEnvironment, loadEnvironment } from "./src/config/env.js";
-import { createAuthRoutes } from "./src/routes/auth/auth.routes.js";
+import { createAuthRoutes, createRoleAuthRoutes } from "./src/routes/auth/auth.routes.js";
 import { createAuthService } from "./src/services/auth/auth.service.js";
 import { createUserRoutes } from "./src/routes/user.routes.js";
 
@@ -17,8 +17,12 @@ async function start() {
           secret: authEnv.JWT_SECRET, expiresIn: authEnv.JWT_EXPIRES_IN,
         })
       : undefined;
-    const app = createApp({ corsOrigins: env.CORS_ORIGINS,
+    const app = createApp({
+      corsOrigins: env.CORS_ORIGINS,
       authRoutes: auth ? createAuthRoutes(auth) : undefined,
+      adminAuthRoutes: auth ? createRoleAuthRoutes(auth, "SUPER_ADMIN") : undefined,
+      managerAuthRoutes: auth ? createRoleAuthRoutes(auth, "MANAGER") : undefined,
+      sellerAuthRoutes: auth ? createRoleAuthRoutes(auth, "SELLER") : undefined,
       userRoutes: auth && database ? createUserRoutes(database, auth) : undefined,
       checkDatabase: database ? async () => { await database.$queryRaw`SELECT 1`; } : undefined,
     });
