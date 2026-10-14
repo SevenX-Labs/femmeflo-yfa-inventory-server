@@ -31,6 +31,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:bootstrap-admin": "tsx prisma/seed.ts",
+    "admin:reset": "tsx scripts/reset-admin.ts",
+    "seed:roles": "tsx scripts/seed-standard-roles.ts",
     "docs:api": "node scripts/generate-api-docs.mjs"
   },
   "dependencies": {
