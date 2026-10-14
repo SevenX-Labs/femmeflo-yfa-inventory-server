@@ -82,15 +82,65 @@ export function createAdminDashboardService(database: PrismaClient) {
     },
 
     getFilters: async () => {
-      // Helper endpoint returning distinct states, districts, and categories for UI dropdowns
-      const categories = await database.category.findMany({ where: { active: true }, select: { id: true, name: true } });
-      const statesResult = await database.customer.groupBy({ by: ["state"] });
-      const districtsResult = await database.customer.groupBy({ by: ["district"] });
+      // Helper endpoint returning distinct states, districts, villages, managers, sellers, and categories
+      const categories = await database.category.findMany({
+        where: { active: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      });
+
+      const customerLocations = await database.customer.findMany({
+        where: { active: true },
+        select: { state: true, district: true, village: true },
+        distinct: ["state", "district", "village"],
+      });
+
+      const statesSet = new Set<string>();
+      const districtsList: Array<{ state: string; district: string }> = [];
+      const villagesList: Array<{ state: string; district: string; village: string }> = [];
+      const districtKeySet = new Set<string>();
+      const villageKeySet = new Set<string>();
+
+      for (const loc of customerLocations) {
+        if (loc.state) statesSet.add(loc.state);
+        if (loc.state && loc.district) {
+          const dKey = `${loc.state}:::${loc.district}`;
+          if (!districtKeySet.has(dKey)) {
+            districtKeySet.add(dKey);
+            districtsList.push({ state: loc.state, district: loc.district });
+          }
+        }
+        if (loc.state && loc.district && loc.village) {
+          const vKey = `${loc.state}:::${loc.district}:::${loc.village}`;
+          if (!villageKeySet.has(vKey)) {
+            villageKeySet.add(vKey);
+            villagesList.push({ state: loc.state, district: loc.district, village: loc.village });
+          }
+        }
+      }
+
+      const managers = await database.user.findMany({
+        where: { role: "MANAGER", active: true },
+        select: { id: true, name: true, state: true, district: true },
+        orderBy: { name: "asc" },
+      });
+
+      const sellers = await database.user.findMany({
+        where: { role: "SELLER", active: true },
+        select: { id: true, name: true, managerId: true, state: true, district: true },
+        orderBy: { name: "asc" },
+      });
+
+      const rawDistricts = Array.from(new Set(districtsList.map((d) => d.district))).sort();
 
       return {
         categories,
-        states: statesResult.map((r) => r.state),
-        districts: districtsResult.map((r) => r.district),
+        states: Array.from(statesSet).sort(),
+        districts: districtsList,
+        rawDistricts,
+        villages: villagesList,
+        managers,
+        sellers,
       };
     },
   };

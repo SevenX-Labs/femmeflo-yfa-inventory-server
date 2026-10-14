@@ -9,9 +9,11 @@ export const updateCategorySchema = z.strictObject({
   active: z.boolean().optional(),
 }).refine((value) => Object.keys(value).length > 0, "Provide at least one field");
 
-export const listCategoriesSchema = z.strictObject({
+export const listCategoriesSchema = z.object({
   search: z.string().trim().max(50).optional(),
   active: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().optional(),
 });
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;

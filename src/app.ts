@@ -5,6 +5,7 @@ import morgan from "morgan";
 import type { Router } from "express";
 import { errorHandler, notFound } from "./middleware/error.middleware.js";
 import { setupSwagger } from "./config/swagger.js";
+import { globalApiRateLimiter } from "./middleware/rate-limit.middleware.js";
 
 type AppOptions = {
   corsOrigins: string[];
@@ -29,6 +30,7 @@ export function createApp({
 }: AppOptions) {
   const app = express();
   app.disable("x-powered-by");
+  app.set("trust proxy", 1);
   app.use(helmet());
   app.use(cors({ origin: corsOrigins }));
   if (requestLogging) {
@@ -36,6 +38,7 @@ export function createApp({
     app.use(morgan(":method :status :response-time ms"));
   }
   app.use(express.json({ limit: "100kb" }));
+  app.use("/api/v1", globalApiRateLimiter);
   setupSwagger(app);
   app.get("/", (_request, response) => {
     response.json({

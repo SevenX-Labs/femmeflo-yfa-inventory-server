@@ -30,6 +30,7 @@ export function createSellerDashboardService(database: PrismaClient) {
         orderBy: { createdAt: "desc" },
         include: {
           customer: { select: { id: true, shopName: true, contactName: true } },
+          invoice: { select: { id: true, number: true } },
         },
       });
 

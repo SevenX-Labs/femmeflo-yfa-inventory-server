@@ -26,11 +26,84 @@ import { createAdminInvoiceRoutes } from "./admin/invoice.routes.js";
 import { createAdminPermissionRoutes } from "./admin/permission.routes.js";
 import { createAdminReportRoutes } from "./admin/report.routes.js";
 import { createSellerProfileRoutes } from "./seller/profile.routes.js";
+import { generateInvoicePdfBuffer, type InvoiceSnapshot } from "../services/pdf.service.js";
 
 export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   const router = Router();
   router.use((_request, response, next) => { response.setHeader("Cache-Control", "no-store"); next(); });
   const authenticate = requireAuthentication(auth);
+
+  // Invoices (Direct PDF streaming for Admin, Manager, and Seller)
+  router.get("/invoices/:id/pdf", authenticate, async (request, response, next) => {
+    try {
+      const user = response.locals.authUser as { id: string; role: string };
+      const id = request.params["id"];
+      const invoice = await database.invoice.findUnique({
+        where: { id },
+        include: {
+          sale: {
+            include: {
+              customer: true,
+              seller: { select: { id: true, name: true, phone: true, managerId: true } },
+            },
+          },
+        },
+      });
+
+      if (!invoice) {
+        response.status(404).json({ success: false, message: "Invoice not found" });
+        return;
+      }
+
+      // Role authorization
+      if (user.role === "SELLER" && invoice.sale.sellerId !== user.id) {
+        response.status(403).json({ success: false, message: "Forbidden" });
+        return;
+      }
+      if (user.role === "MANAGER" && invoice.sale.seller.managerId !== user.id) {
+        response.status(403).json({ success: false, message: "Forbidden" });
+        return;
+      }
+
+      let snapshot = invoice.snapshot as unknown as InvoiceSnapshot;
+      if (!snapshot || !snapshot.invoiceNumber) {
+        snapshot = {
+          invoiceNumber: invoice.number,
+          saleId: invoice.saleId,
+          date: invoice.createdAt.toISOString(),
+          customer: {
+            shopName: invoice.sale?.customer?.shopName || "Customer Store",
+            contactName: invoice.sale?.customer?.contactName || "Customer",
+            phone: invoice.sale?.customer?.phone || "",
+            state: invoice.sale?.customer?.state,
+            district: invoice.sale?.customer?.district,
+            village: invoice.sale?.customer?.village,
+          },
+          seller: {
+            name: invoice.sale?.seller?.name || "Seller",
+            phone: invoice.sale?.seller?.phone || "",
+          },
+          quantity: invoice.sale?.quantity || 0,
+          unitPricePaise: invoice.sale?.unitPricePaise || 0,
+          totalPaise: invoice.sale?.totalPaise || 0,
+          paymentMode: invoice.sale?.paymentMode || "CASH",
+        };
+      }
+
+      const pdfBuffer = await generateInvoicePdfBuffer(snapshot);
+      const isDownload = request.query["download"] === "true";
+
+      response.setHeader("Content-Type", "application/pdf");
+      response.setHeader(
+        "Content-Disposition",
+        `${isDownload ? "attachment" : "inline"}; filename="Invoice-${invoice.number}.pdf"`
+      );
+      response.setHeader("Content-Length", pdfBuffer.length);
+      response.send(pdfBuffer);
+    } catch (err) {
+      next(err);
+    }
+  });
 
   // Categories
   router.use("/categories", authenticate, createCategoryRoutes(database));

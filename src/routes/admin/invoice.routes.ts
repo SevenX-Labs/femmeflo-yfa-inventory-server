@@ -9,6 +9,7 @@ export function createAdminInvoiceRoutes(database: PrismaClient) {
 
   router.get("/", controller.list);
   router.get("/:id", controller.get);
+  router.get("/:id/pdf", controller.getPdf);
 
   return router;
 }

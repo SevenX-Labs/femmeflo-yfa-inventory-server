@@ -48,13 +48,16 @@ async function testHttp(
   let actualStatus = 0;
   let details = '';
   try {
-    const res = await fetch(fullUrl, {
+    const reqInit: RequestInit = {
       method,
       headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      redirect: 'manual', // do not follow redirects automatically so we can inspect 307 / 308 / 200
+      redirect: 'manual',
       signal: AbortSignal.timeout(15000),
-    });
+    };
+    if (options.body !== undefined) {
+      reqInit.body = JSON.stringify(options.body);
+    }
+    const res = await fetch(fullUrl, reqInit);
     actualStatus = res.status;
     const text = await res.text();
     try {
@@ -125,7 +128,7 @@ async function runAllTests() {
   await testHttp(
     'BE-08', 'BACKEND', 'FAILURE', 'Admin Role Login Non-Admin Role Rejection (403)', 'POST',
     `${BACKEND_BASE}/api/v1/admin/auth/login`, 403,
-    { body: { login: 'manager_feat_1791902800592@example.com', password: 'Password123!' } }
+    { body: { login: 'manager@femmeflo.com', password: 'ManagerPassword123!' } }
   );
   await testHttp(
     'BE-09', 'BACKEND', 'FAILURE', 'Admin Role Login Empty Body (400)', 'POST',
@@ -137,22 +140,22 @@ async function runAllTests() {
   const managerLoginSuccess = await testHttp(
     'BE-10', 'BACKEND', 'SUCCESS', 'Manager Role Login Success', 'POST',
     `${BACKEND_BASE}/api/v1/manager/auth/login`, 200,
-    { body: { login: 'manager_feat_1791902800592@example.com', password: 'Password123!' } }
+    { body: { login: 'manager@femmeflo.com', password: 'ManagerPassword123!' } }
   );
   await testHttp(
     'BE-11', 'BACKEND', 'SUCCESS', 'Manager Alias /manger/auth/login Success', 'POST',
     `${BACKEND_BASE}/api/v1/manger/auth/login`, 200,
-    { body: { login: 'manager_feat_1791902800592@example.com', password: 'Password123!' } }
+    { body: { login: 'manager@femmeflo.com', password: 'ManagerPassword123!' } }
   );
   await testHttp(
     'BE-12', 'BACKEND', 'FAILURE', 'Manager Role Login Bad Password (401)', 'POST',
     `${BACKEND_BASE}/api/v1/manager/auth/login`, 401,
-    { body: { login: 'manager_feat_1791902800592@example.com', password: 'WrongPassword999!' } }
+    { body: { login: 'manager@femmeflo.com', password: 'WrongPassword999!' } }
   );
   await testHttp(
     'BE-13', 'BACKEND', 'FAILURE', 'Manager Role Login Non-Manager Role Rejection (403)', 'POST',
     `${BACKEND_BASE}/api/v1/manager/auth/login`, 403,
-    { body: { login: 'seller_feat_1791899898543@example.com', password: 'Password123!' } }
+    { body: { login: 'seller@femmeflo.com', password: 'SellerPassword123!' } }
   );
   await testHttp(
     'BE-14', 'BACKEND', 'FAILURE', 'Manager Role Login Empty Body (400)', 'POST',
@@ -164,17 +167,17 @@ async function runAllTests() {
   const sellerLoginSuccess = await testHttp(
     'BE-15', 'BACKEND', 'SUCCESS', 'Seller Role Login Success', 'POST',
     `${BACKEND_BASE}/api/v1/seller/auth/login`, 200,
-    { body: { login: 'seller_feat_1791899898543@example.com', password: 'Password123!' } }
+    { body: { login: 'seller@femmeflo.com', password: 'SellerPassword123!' } }
   );
   await testHttp(
     'BE-16', 'BACKEND', 'FAILURE', 'Seller Role Login Bad Password (401)', 'POST',
     `${BACKEND_BASE}/api/v1/seller/auth/login`, 401,
-    { body: { login: 'seller_feat_1791899898543@example.com', password: 'WrongPassword999!' } }
+    { body: { login: 'seller@femmeflo.com', password: 'WrongPassword999!' } }
   );
   await testHttp(
     'BE-17', 'BACKEND', 'FAILURE', 'Seller Role Login Non-Seller Role Rejection (403)', 'POST',
     `${BACKEND_BASE}/api/v1/seller/auth/login`, 403,
-    { body: { login: 'manager_feat_1791902800592@example.com', password: 'Password123!' } }
+    { body: { login: 'manager@femmeflo.com', password: 'ManagerPassword123!' } }
   );
   await testHttp(
     'BE-18', 'BACKEND', 'FAILURE', 'Seller Role Login Empty Body (400)', 'POST',
@@ -210,7 +213,7 @@ async function runAllTests() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ login: 'admin@femmeflo.com', password: 'AdminPassword123!' }),
     });
-    const dAdmin = await rAdmin.json();
+    const dAdmin = (await rAdmin.json()) as any;
     adminToken = dAdmin.data?.token || '';
   } catch {}
 
@@ -218,9 +221,9 @@ async function runAllTests() {
     const rMgr = await fetch(`${BACKEND_BASE}/api/v1/manager/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ login: 'manager_feat_1791902800592@example.com', password: 'Password123!' }),
+      body: JSON.stringify({ login: 'manager@femmeflo.com', password: 'ManagerPassword123!' }),
     });
-    const dMgr = await rMgr.json();
+    const dMgr = (await rMgr.json()) as any;
     managerToken = dMgr.data?.token || '';
   } catch {}
 
@@ -228,9 +231,9 @@ async function runAllTests() {
     const rSeller = await fetch(`${BACKEND_BASE}/api/v1/seller/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ login: 'seller_feat_1791899898543@example.com', password: 'Password123!' }),
+      body: JSON.stringify({ login: 'seller@femmeflo.com', password: 'SellerPassword123!' }),
     });
-    const dSeller = await rSeller.json();
+    const dSeller = (await rSeller.json()) as any;
     sellerToken = dSeller.data?.token || '';
   } catch {}
 
