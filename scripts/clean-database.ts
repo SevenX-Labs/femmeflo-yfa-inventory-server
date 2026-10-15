@@ -17,6 +17,7 @@ async function main() {
     await db.sale.deleteMany({});
     await db.customer.deleteMany({});
     await db.stockLocation.deleteMany({ where: { type: { not: "HQ" } } });
+    await db.stockLocation.updateMany({ where: { type: "HQ" }, data: { balance: 0 } });
     await db.passwordReset.deleteMany({});
     
     // Remove all users except the SUPER_ADMIN
