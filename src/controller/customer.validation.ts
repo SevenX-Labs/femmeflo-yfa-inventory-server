@@ -3,6 +3,8 @@ import { emailSchema, phoneSchema } from "../middleware/validation.js";
 import { validateCoordinates } from "../utils/geo.utils.js";
 
 const location = z.string().trim().min(1).max(100);
+const optionalText = z.string().trim().max(200).optional();
+const pincodeSchema = z.string().trim().regex(/^[1-9][0-9]{5}$/, "Pincode must be a 6-digit Indian postal code").optional();
 
 export const createCustomerSchema = z.strictObject({
   shopName: z.string().trim().min(1).max(100),
@@ -11,6 +13,10 @@ export const createCustomerSchema = z.strictObject({
   email: emailSchema.optional(),
   categoryId: z.string().uuid(),
   sellerId: z.string().uuid().optional(),
+  shopNumber: optionalText,
+  streetName: optionalText,
+  pincode: pincodeSchema,
+  address: z.string().trim().max(500).optional(),
   state: location,
   district: location,
   village: location,
@@ -32,8 +38,10 @@ export const createCustomerSchema = z.strictObject({
 })
 .transform((data) => {
   const coords = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
+  const computedAddress = data.address || [data.shopNumber, data.streetName, data.village, data.district, data.state, data.pincode].filter(Boolean).join(", ");
   return {
     ...data,
+    address: computedAddress || undefined,
     latitude: coords.latitude,
     longitude: coords.longitude,
     photoPath: data.photoPath ?? data.photoUrl ?? data.imageUrl,
@@ -47,6 +55,10 @@ export const updateCustomerSchema = z.strictObject({
   email: emailSchema.optional(),
   categoryId: z.string().uuid().optional(),
   sellerId: z.string().uuid().optional(),
+  shopNumber: optionalText,
+  streetName: optionalText,
+  pincode: pincodeSchema,
+  address: z.string().trim().max(500).optional(),
   state: location.optional(),
   district: location.optional(),
   village: location.optional(),
@@ -89,6 +101,7 @@ export const listCustomersSchema = z.strictObject({
   state: location.optional(),
   district: location.optional(),
   village: location.optional(),
+  pincode: z.string().trim().optional(),
 });
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;

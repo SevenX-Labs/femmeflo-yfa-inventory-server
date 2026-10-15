@@ -103,6 +103,10 @@ model Customer {
   seller      User     @relation("AssignedSeller", fields: [sellerId], references: [id])
   createdById String   @db.Uuid
   createdBy   User     @relation("CustomerCreator", fields: [createdById], references: [id])
+  shopNumber  String?
+  streetName  String?
+  pincode     String?
+  address     String?
   state       String
   district    String
   village     String
@@ -117,6 +121,7 @@ model Customer {
   @@index([sellerId])
   @@index([state, district, village])
   @@index([categoryId])
+  @@index([pincode])
 }
 
 model StockLocation {

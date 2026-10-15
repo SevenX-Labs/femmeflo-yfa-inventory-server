@@ -9,6 +9,7 @@ export function createManagerCustomerRoutes(database: PrismaClient) {
   const router = Router();
   const controller = createCustomerController(createCustomerService(database));
 
+  router.get("/pincode/:pincode", controller.lookupPincode);
   router.get("/", controller.list);
   router.post("/", uploadCustomerPhotoMiddleware, controller.create);
   router.get("/:id", controller.get);

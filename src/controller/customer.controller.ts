@@ -1,3 +1,4 @@
+import { lookupPincode } from "../services/pincode.service.js";
 import type { Request, Response } from "express";
 import type { CustomerService } from "../services/customer.service.js";
 import type { PublicUser } from "../services/auth/auth.types.js";
@@ -69,6 +70,20 @@ export function createCustomerController(service: CustomerService) {
         success: true,
         message: "Customer updated",
         data: { customer },
+      });
+    },
+
+    lookupPincode: async (request: Request, response: Response) => {
+      const rawPincode = request.params["pincode"] || request.query["pincode"];
+      const pincode = Array.isArray(rawPincode) ? rawPincode[0] : rawPincode;
+      if (!pincode || typeof pincode !== "string") {
+        throw new HttpError(400, "Valid 6-digit PIN code is required");
+      }
+      const data = await lookupPincode(pincode);
+      response.json({
+        success: true,
+        message: "Pincode details fetched",
+        data,
       });
     },
 

@@ -47,6 +47,10 @@ export function createCustomerService(database: PrismaClient) {
         categoryId: input.categoryId,
         sellerId: assignedSellerId,
         createdById: user.id,
+        shopNumber: input.shopNumber,
+        streetName: input.streetName,
+        pincode: input.pincode,
+        address: input.address,
         state: input.state,
         district: input.district,
         village: input.village,
@@ -85,6 +89,7 @@ export function createCustomerService(database: PrismaClient) {
       if (query.state) where.state = { equals: query.state, mode: "insensitive" };
       if (query.district) where.district = { equals: query.district, mode: "insensitive" };
       if (query.village) where.village = { equals: query.village, mode: "insensitive" };
+      if (query.pincode) where.pincode = query.pincode;
 
       // Role scoping
       if (user.role === "SELLER") {
@@ -207,6 +212,10 @@ export function createCustomerService(database: PrismaClient) {
       if (input.email !== undefined) updateData["email"] = input.email;
       if (input.categoryId !== undefined) updateData["categoryId"] = input.categoryId;
       if (input.sellerId !== undefined) updateData["sellerId"] = input.sellerId;
+      if (input.shopNumber !== undefined) updateData["shopNumber"] = input.shopNumber;
+      if (input.streetName !== undefined) updateData["streetName"] = input.streetName;
+      if (input.pincode !== undefined) updateData["pincode"] = input.pincode;
+      if (input.address !== undefined) updateData["address"] = input.address;
       if (input.state !== undefined) updateData["state"] = input.state;
       if (input.district !== undefined) updateData["district"] = input.district;
       if (input.village !== undefined) updateData["village"] = input.village;
