@@ -1,3 +1,4 @@
+import { lookupPincode } from "../services/pincode.service.js";
 import type { Request, Response } from "express";
 import type { CustomerService } from "../services/customer.service.js";
 import type { PublicUser } from "../services/auth/auth.types.js";
@@ -72,6 +73,20 @@ export function createCustomerController(service: CustomerService) {
       });
     },
 
+    lookupPincode: async (request: Request, response: Response) => {
+      const rawPincode = request.params["pincode"] || request.query["pincode"];
+      const pincode = Array.isArray(rawPincode) ? rawPincode[0] : rawPincode;
+      if (!pincode || typeof pincode !== "string") {
+        throw new HttpError(400, "Valid 6-digit PIN code is required");
+      }
+      const data = await lookupPincode(pincode);
+      response.json({
+        success: true,
+        message: "Pincode details fetched",
+        data,
+      });
+    },
+
     uploadPhoto: async (request: Request, response: Response) => {
       const user = response.locals.authUser as PublicUser;
       const id = parseInput(idSchema, request.params["id"]);
@@ -88,19 +103,6 @@ export function createCustomerController(service: CustomerService) {
         success: true,
         message: "Customer photo uploaded successfully",
         data: result,
-      });
-    },
-
-    lookupPincode: async (request: Request, response: Response) => {
-      const pincode = String(request.params["pincode"] || "").trim();
-      if (!/^[1-9][0-9]{5}$/.test(pincode)) {
-        throw new HttpError(400, "Invalid 6-digit Indian PIN code");
-      }
-      const data = await service.lookupPincode(pincode);
-      response.json({
-        success: true,
-        message: "Pincode details fetched",
-        data,
       });
     },
   };
