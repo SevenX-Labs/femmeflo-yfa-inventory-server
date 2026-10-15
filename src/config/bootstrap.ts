@@ -2,16 +2,17 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import type { PrismaClient } from "../generated/prisma/client.js";
 
+const DEFAULT_INITIAL_PASSWORD = "femmeflo@2026";
+
 /**
  * Ensures a Super Admin account exists in the database.
- * - If no Super Admin exists (first time developer seed): creates the admin using
- *   ADMIN_EMAIL and ADMIN_PASSWORD from .env.
- * - If a Super Admin already exists: PRESERVES their password (so changes made in
- *   Admin Settings are never overwritten on server restart or re-seed).
+ * - Password is NOT stored in .env. It lives exclusively in the database (bcrypt hash).
+ * - First-time migration/bootstrap: auto-seeds the initial password "femmeflo@2026".
+ * - Subsequent restarts/migrations: NEVER overwrites the password. Any password changed
+ *   by the admin in Admin Settings is preserved directly from the DB.
  */
 export async function bootstrapInitialAdmin(database: PrismaClient) {
   const adminEmail = (process.env.ADMIN_EMAIL || "admin@femmeflo.in").trim().toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || "AdminPassword123!";
   const adminName = process.env.ADMIN_NAME || "Super Admin";
 
   const existingAdmin = await database.user.findFirst({
@@ -24,8 +25,7 @@ export async function bootstrapInitialAdmin(database: PrismaClient) {
   });
 
   if (existingAdmin) {
-    // Preserve existing password!
-    // Only sync email if it changed in .env (e.g. .com -> .in) and ensure active status.
+    // Admin exists in DB: PRESERVE DB passwordHash completely!
     const updateData: { email?: string; active?: boolean } = {};
     if (existingAdmin.email !== adminEmail) {
       updateData.email = adminEmail;
@@ -38,13 +38,13 @@ export async function bootstrapInitialAdmin(database: PrismaClient) {
         where: { id: existingAdmin.id },
         data: updateData,
       });
-      console.info(`[Bootstrap] Updated Super Admin email to ${adminEmail} (password preserved).`);
+      console.info(`[Bootstrap] Verified Super Admin email (${adminEmail}). DB password preserved.`);
     }
     return existingAdmin;
   }
 
-  // First time seed: create initial Super Admin
-  const passwordHash = await bcrypt.hash(adminPassword, 12);
+  // First time seed: set initial default password in DB only
+  const passwordHash = await bcrypt.hash(DEFAULT_INITIAL_PASSWORD, 12);
   const admin = await database.user.create({
     data: {
       name: adminName,
@@ -54,6 +54,6 @@ export async function bootstrapInitialAdmin(database: PrismaClient) {
       active: true,
     },
   });
-  console.info(`[Bootstrap] Initial Super Admin created with email: ${admin.email}`);
+  console.info(`[Bootstrap] Initial Super Admin created for ${admin.email} with initial password.`);
   return admin;
 }

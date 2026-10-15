@@ -2,15 +2,12 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import { createDatabase } from "../src/config/database.js";
 
+const DEFAULT_INITIAL_PASSWORD = "femmeflo@2026";
+
 async function main() {
   const email = (process.argv[2] || process.env.ADMIN_EMAIL || "admin@femmeflo.in").trim().toLowerCase();
-  const password = process.argv[3] || process.env.ADMIN_PASSWORD || "AdminPassword123!";
+  const password = process.argv[3] || DEFAULT_INITIAL_PASSWORD;
   const name = process.env.ADMIN_NAME || "Super Admin";
-
-  if (!email || !password) {
-    console.error("Usage: npx tsx scripts/reset-admin.ts [email] [password]");
-    process.exit(1);
-  }
 
   const db = createDatabase(process.env.DATABASE_URL!);
   try {
@@ -51,14 +48,14 @@ async function main() {
     }
 
     console.log("==========================================");
-    console.log("Super Admin Account Ready:");
+    console.log("Super Admin Account Ready in DB:");
     console.log(`Email:    ${admin.email}`);
     console.log(`Password: ${password}`);
     console.log(`Role:     ${admin.role}`);
     console.log(`Active:   ${admin.active}`);
     console.log("==========================================");
   } catch (err) {
-    console.error("Failed to set admin credentials:", err);
+    console.error("Failed to set admin credentials in DB:", err);
     process.exit(1);
   } finally {
     await db.$disconnect();

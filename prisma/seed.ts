@@ -2,6 +2,8 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import { createDatabase } from "../src/config/database.js";
 
+const DEFAULT_INITIAL_PASSWORD = "femmeflo@2026";
+
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -13,13 +15,11 @@ async function main() {
   try {
     const adminName = process.env.ADMIN_NAME || "Super Admin";
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@femmeflo.in").trim().toLowerCase();
-    const adminPassword = process.env.ADMIN_PASSWORD || "AdminPassword123!";
 
     await database.$transaction(async (tx) => {
-      // Serialize simultaneous bootstrap attempts
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(71230421)`;
 
-      // Clean up any stray dummy data so DB is pristine
+      // Purge all dummy non-admin data so DB remains 100% clean
       await tx.delivery.deleteMany({});
       await tx.notification.deleteMany({});
       await tx.paymentRecord.deleteMany({});
@@ -40,7 +40,7 @@ async function main() {
       });
 
       if (existingAdmin) {
-        // PRESERVE existing password!
+        // PRESERVE the existing password from DB!
         await tx.user.update({
           where: { id: existingAdmin.id },
           data: {
@@ -50,10 +50,10 @@ async function main() {
             active: true,
           },
         });
-        console.info(`Super Admin verified: ${adminEmail} (password preserved).`);
+        console.info(`Super Admin verified in DB: ${adminEmail} (password preserved).`);
       } else {
-        // Create initial Super Admin from .env credentials
-        const passwordHash = await bcrypt.hash(adminPassword, 12);
+        // First-time auto seed initial default password
+        const passwordHash = await bcrypt.hash(DEFAULT_INITIAL_PASSWORD, 12);
         await tx.user.create({
           data: {
             name: adminName,
@@ -63,7 +63,7 @@ async function main() {
             active: true,
           },
         });
-        console.info(`Initial Super Admin created: ${adminEmail}`);
+        console.info(`Initial Super Admin created in DB with email: ${adminEmail}`);
       }
 
       await tx.businessSettings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
@@ -73,7 +73,7 @@ async function main() {
       }
     });
 
-    console.info("Prisma seed finished: 0 dummy users, clean Super Admin ready.");
+    console.info("Prisma seed finished: 0 dummy users, clean Super Admin ready in DB.");
   } catch (error) {
     console.error("Seed failed:", error);
     process.exitCode = 1;
