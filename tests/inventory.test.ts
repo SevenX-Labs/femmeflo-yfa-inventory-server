@@ -50,7 +50,7 @@ test("Inventory Management Endpoints Flow", async (t) => {
   const timestamp = `${Date.now()}_${rand}`;
 
   // 1. Admin login
-  const adminRes = await auth.login(process.env["ADMIN_EMAIL"] ?? "admin@femmeflo.com", process.env["ADMIN_PASSWORD"] ?? "AdminPassword123!");
+  const adminRes = await auth.login(process.env["ADMIN_EMAIL"] ?? "admin@femmeflo.in", process.env["ADMIN_PASSWORD"] ?? "AdminPassword123!");
   const adminToken = adminRes.token;
 
   // Create Manager & Seller

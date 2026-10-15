@@ -42,7 +42,7 @@ const options: swaggerJsdoc.Options = {
                 schema: {
                   type: "object",
                   properties: {
-                    login: { type: "string", example: "admin@femmeflo.com" },
+                    login: { type: "string", example: "admin@femmeflo.in" },
                     password: { type: "string", example: "Admin@123456" },
                   },
                   required: ["login", "password"],

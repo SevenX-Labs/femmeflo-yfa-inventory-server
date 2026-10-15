@@ -4,6 +4,7 @@ import { loadAuthEnvironment, loadEnvironment } from "./src/config/env.js";
 import { createAuthRoutes, createRoleAuthRoutes } from "./src/routes/auth/auth.routes.js";
 import { createAuthService } from "./src/services/auth/auth.service.js";
 import { createUserRoutes } from "./src/routes/user.routes.js";
+import { bootstrapInitialAdmin } from "./src/config/bootstrap.js";
 
 const env = loadEnvironment();
 const authEnv = loadAuthEnvironment();
@@ -11,7 +12,10 @@ const authEnv = loadAuthEnvironment();
 async function start() {
   const database = authEnv ? createDatabase(authEnv.DATABASE_URL) : undefined;
   try {
-    if (database) await database.$queryRaw`SELECT 1`;
+    if (database) {
+      await database.$queryRaw`SELECT 1`;
+      await bootstrapInitialAdmin(database);
+    }
     const auth = database && authEnv
       ? createAuthService(database, {
           secret: authEnv.JWT_SECRET, expiresIn: authEnv.JWT_EXPIRES_IN,

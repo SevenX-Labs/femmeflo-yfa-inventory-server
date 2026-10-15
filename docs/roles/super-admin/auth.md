@@ -32,7 +32,7 @@ POST /api/v1/auth/login
 Content-Type: application/json
 
 {
-  "login": "admin@femmeflo.com",
+  "login": "admin@femmeflo.in",
   "password": "SuperSecureAdminPassword123!"
 }
 ```
@@ -49,7 +49,7 @@ Content-Type: application/json
     "user": {
       "id": "2c62c2f6-ec89-498c-8c0c-e2f4a4bf7f09",
       "name": "Headquarters Administrator",
-      "email": "admin@femmeflo.com",
+      "email": "admin@femmeflo.in",
       "phone": null,
       "role": "SUPER_ADMIN",
       "active": true,
@@ -90,7 +90,7 @@ Content-Type: application/json
 **Effect**: Verifies current password, writes the new bcrypt hash, and increments `tokenVersion` by `+1`, instantly terminating any existing Super Admin sessions.
 
 ### 3.3 Account Recovery (Forgot & Reset)
-- `POST /api/v1/auth/forgot-password` with `{ "login": "admin@femmeflo.com" }` generates a 20-minute reset token.
+- `POST /api/v1/auth/forgot-password` with `{ "login": "admin@femmeflo.in" }` generates a 20-minute reset token.
 - `POST /api/v1/auth/reset-password` with `{ "token": "<raw_token>", "newPassword": "<new_password>" }` updates credentials and increments `tokenVersion`.
 
 ---

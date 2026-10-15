@@ -118,12 +118,12 @@ async function runAllTests() {
   const adminLoginSuccess = await testHttp(
     'BE-06', 'BACKEND', 'SUCCESS', 'Admin Role Login Success', 'POST',
     `${BACKEND_BASE}/api/v1/admin/auth/login`, 200,
-    { body: { login: 'admin@femmeflo.com', password: 'AdminPassword123!' } }
+    { body: { login: 'admin@femmeflo.in', password: 'AdminPassword123!' } }
   );
   await testHttp(
     'BE-07', 'BACKEND', 'FAILURE', 'Admin Role Login Bad Password (401)', 'POST',
     `${BACKEND_BASE}/api/v1/admin/auth/login`, 401,
-    { body: { login: 'admin@femmeflo.com', password: 'WrongPassword999!' } }
+    { body: { login: 'admin@femmeflo.in', password: 'WrongPassword999!' } }
   );
   await testHttp(
     'BE-08', 'BACKEND', 'FAILURE', 'Admin Role Login Non-Admin Role Rejection (403)', 'POST',
@@ -189,12 +189,12 @@ async function runAllTests() {
   await testHttp(
     'BE-19', 'BACKEND', 'SUCCESS', 'Legacy Universal /auth/login Success', 'POST',
     `${BACKEND_BASE}/api/v1/auth/login`, 200,
-    { body: { login: 'admin@femmeflo.com', password: 'AdminPassword123!' } }
+    { body: { login: 'admin@femmeflo.in', password: 'AdminPassword123!' } }
   );
   await testHttp(
     'BE-20', 'BACKEND', 'FAILURE', 'Legacy Universal /auth/login Bad Password (401)', 'POST',
     `${BACKEND_BASE}/api/v1/auth/login`, 401,
-    { body: { login: 'admin@femmeflo.com', password: 'WrongPassword999!' } }
+    { body: { login: 'admin@femmeflo.in', password: 'WrongPassword999!' } }
   );
   await testHttp(
     'BE-21', 'BACKEND', 'FAILURE', 'Legacy Universal /auth/login Empty Body (400)', 'POST',
@@ -211,7 +211,7 @@ async function runAllTests() {
     const rAdmin = await fetch(`${BACKEND_BASE}/api/v1/admin/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ login: 'admin@femmeflo.com', password: 'AdminPassword123!' }),
+      body: JSON.stringify({ login: 'admin@femmeflo.in', password: 'AdminPassword123!' }),
     });
     const dAdmin = (await rAdmin.json()) as any;
     adminToken = dAdmin.data?.token || '';

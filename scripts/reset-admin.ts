@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import { createDatabase } from "../src/config/database.js";
 
 async function main() {
-  const email = process.argv[2] || process.env.ADMIN_EMAIL || "admin@femmeflo.com";
+  const email = (process.argv[2] || process.env.ADMIN_EMAIL || "admin@femmeflo.in").trim().toLowerCase();
   const password = process.argv[3] || process.env.ADMIN_PASSWORD || "AdminPassword123!";
   const name = process.env.ADMIN_NAME || "Super Admin";
 
@@ -16,23 +16,39 @@ async function main() {
   try {
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const admin = await db.user.upsert({
-      where: { email },
-      update: {
-        name,
-        passwordHash,
-        role: "SUPER_ADMIN",
-        active: true,
-        tokenVersion: { increment: 1 },
-      },
-      create: {
-        name,
-        email,
-        passwordHash,
-        role: "SUPER_ADMIN",
-        active: true,
+    const existingAdmin = await db.user.findFirst({
+      where: {
+        OR: [
+          { role: "SUPER_ADMIN" },
+          { email },
+        ],
       },
     });
+
+    let admin;
+    if (existingAdmin) {
+      admin = await db.user.update({
+        where: { id: existingAdmin.id },
+        data: {
+          name,
+          email,
+          passwordHash,
+          role: "SUPER_ADMIN",
+          active: true,
+          tokenVersion: { increment: 1 },
+        },
+      });
+    } else {
+      admin = await db.user.create({
+        data: {
+          name,
+          email,
+          passwordHash,
+          role: "SUPER_ADMIN",
+          active: true,
+        },
+      });
+    }
 
     console.log("==========================================");
     console.log("Super Admin Account Ready:");
