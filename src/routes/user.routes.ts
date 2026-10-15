@@ -3,6 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import type { AuthService } from "../services/auth/auth.service.js";
 import { requireAuthentication } from "../middleware/auth.middleware.js";
 import { requireRole } from "../middleware/rbac.middleware.js";
+import { parseInput, idSchema } from "../middleware/validation.js";
 import { createManagerRoutes } from "./admin/manager.routes.js";
 import { createAdminSellerRoutes } from "./admin/seller.routes.js";
 import { createManagerSellerRoutes } from "./manager/seller.routes.js";
@@ -37,7 +38,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   router.get("/invoices/:id/pdf", authenticate, async (request, response, next) => {
     try {
       const user = response.locals.authUser as { id: string; role: string };
-      const id = request.params["id"];
+      const id = parseInput(idSchema, request.params["id"]);
       const invoice = await database.invoice.findUnique({
         where: { id },
         include: {
