@@ -1,3 +1,4 @@
+import { cleanupTestData } from "./test_cleanup.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import bcrypt from "bcrypt";
@@ -284,6 +285,11 @@ test("New Features End-to-End Integration Suite", async (t) => {
 
     const pdfPath = await processInvoicePdf(database, invoice.id);
     assert.ok(pdfPath.startsWith("/storage/invoices/"));
+  });
+
+  t.after(async () => {
+    await cleanupTestData(database);
+    await database.$disconnect();
   });
 });
 

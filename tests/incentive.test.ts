@@ -1,3 +1,4 @@
+import { cleanupTestData } from "./test_cleanup.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createApp } from "../src/app.js";
@@ -157,6 +158,7 @@ test("Incentive Management and Settings Flow", async (t) => {
   assert.equal(adminInc.status, 200);
 
   t.after(async () => {
+    await cleanupTestData(database);
     await database.$disconnect();
   });
 });

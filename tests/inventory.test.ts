@@ -1,3 +1,4 @@
+import { cleanupTestData } from "./test_cleanup.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createApp } from "../src/app.js";
@@ -144,6 +145,7 @@ test("Inventory Management Endpoints Flow", async (t) => {
   assert.ok(Array.isArray(txList.json.data["items"]));
 
   t.after(async () => {
+    await cleanupTestData(database);
     await database.$disconnect();
   });
 });

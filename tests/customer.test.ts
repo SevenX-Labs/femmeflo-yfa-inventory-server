@@ -1,3 +1,4 @@
+import { cleanupTestData } from "./test_cleanup.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createApp } from "../src/app.js";
@@ -150,6 +151,7 @@ test("Category and Customer Management Endpoints Flow", async (t) => {
 
   // Cleanup DB connections
   t.after(async () => {
+    await cleanupTestData(database);
     await database.$disconnect();
   });
 });

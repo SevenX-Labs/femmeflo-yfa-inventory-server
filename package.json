@@ -33,7 +33,8 @@
     "db:bootstrap-admin": "tsx prisma/seed.ts",
     "admin:reset": "tsx scripts/reset-admin.ts",
     "seed:roles": "tsx scripts/seed-standard-roles.ts",
-    "docs:api": "node scripts/generate-api-docs.mjs"
+    "docs:api": "node scripts/generate-api-docs.mjs",
+    "db:clean": "tsx scripts/clean-database.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
@@ -70,5 +71,8 @@
     "prisma": "^7.10.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

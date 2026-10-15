@@ -1,3 +1,4 @@
+import { cleanupTestData } from "./test_cleanup.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createApp } from "../src/app.js";
@@ -201,6 +202,7 @@ test("Sales Recording and Low-Price Approval Workflow", async (t) => {
   assert.equal(checkInv4.json.data["remaining"], 70);
 
   t.after(async () => {
+    await cleanupTestData(database);
     await database.$disconnect();
   });
 });
