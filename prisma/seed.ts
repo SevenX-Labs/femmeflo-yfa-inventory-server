@@ -27,6 +27,7 @@ async function main() {
       await tx.stockMovement.deleteMany({});
       await tx.sale.deleteMany({});
       await tx.customer.deleteMany({});
+      await tx.category.deleteMany({});
       await tx.stockLocation.deleteMany({ where: { type: { not: "HQ" } } });
       await tx.stockLocation.updateMany({ where: { type: "HQ" }, data: { balance: 0 } });
       await tx.user.deleteMany({ where: { role: { not: "SUPER_ADMIN" } } });
