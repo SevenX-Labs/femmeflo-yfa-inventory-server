@@ -16,6 +16,7 @@ async function main() {
     await db.stockMovement.deleteMany({});
     await db.sale.deleteMany({});
     await db.customer.deleteMany({});
+    await db.category.deleteMany({});
     await db.stockLocation.deleteMany({ where: { type: { not: "HQ" } } });
     await db.stockLocation.updateMany({ where: { type: "HQ" }, data: { balance: 0 } });
     await db.passwordReset.deleteMany({});
