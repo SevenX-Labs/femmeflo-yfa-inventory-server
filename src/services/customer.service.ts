@@ -57,13 +57,74 @@ export function createCustomerService(database: PrismaClient) {
       if (input.latitude !== undefined) data["latitude"] = new Prisma.Decimal(input.latitude);
       if (input.longitude !== undefined) data["longitude"] = new Prisma.Decimal(input.longitude);
 
-      return database.customer.create({
+      const customer = await database.customer.create({
         data: data as Prisma.CustomerCreateInput,
         include: {
           category: { select: { id: true, name: true } },
           seller: { select: { id: true, name: true, phone: true } },
         },
       });
+
+      const fullAddress = [
+        input.shopNumber,
+        input.streetName,
+        input.village,
+        input.district,
+        input.state,
+        input.pincode,
+      ].filter(Boolean).join(", ");
+
+      return {
+        ...customer,
+        shopNumber: input.shopNumber,
+        streetName: input.streetName,
+        pincode: input.pincode,
+        address: fullAddress || `${customer.village}, ${customer.district}, ${customer.state}`,
+      };
+    },
+
+    lookupPincode: async (pincode: string) => {
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (res.ok) {
+          const json = (await res.json()) as Array<{
+            Status: string;
+            PostOffice?: Array<{
+              Name: string;
+              District: string;
+              State: string;
+            }>;
+          }>;
+
+          if (Array.isArray(json) && json[0]?.Status === "Success" && json[0].PostOffice && json[0].PostOffice.length > 0) {
+            const poList = json[0].PostOffice;
+            const firstPo = poList[0];
+            const state = firstPo?.State || "";
+            const district = firstPo?.District || "";
+            const villages = Array.from(new Set(poList.map((p) => p.Name).filter(Boolean)));
+            const village = villages[0] || "";
+
+            return {
+              pincode,
+              state,
+              district,
+              village,
+              villages,
+            };
+          }
+        }
+      } catch (err) {
+        console.warn("Pincode lookup error:", err);
+      }
+      return {
+        pincode,
+        state: "",
+        district: "",
+        village: "",
+        villages: [],
+      };
     },
 
     list: async (user: UserContext, query: ListCustomersInput) => {

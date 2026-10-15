@@ -90,5 +90,18 @@ export function createCustomerController(service: CustomerService) {
         data: result,
       });
     },
+
+    lookupPincode: async (request: Request, response: Response) => {
+      const pincode = String(request.params["pincode"] || "").trim();
+      if (!/^[1-9][0-9]{5}$/.test(pincode)) {
+        throw new HttpError(400, "Invalid 6-digit Indian PIN code");
+      }
+      const data = await service.lookupPincode(pincode);
+      response.json({
+        success: true,
+        message: "Pincode details fetched",
+        data,
+      });
+    },
   };
 }
