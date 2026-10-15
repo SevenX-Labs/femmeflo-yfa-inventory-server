@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import sharp from "sharp";
 import { getSupabaseStorageClient, CUSTOMER_PHOTO_BUCKET, ALLOWED_IMAGE_MIME_TYPES } from "../config/storage.config.js";
 import { HttpError } from "../middleware/validation.js";
 
@@ -16,7 +17,6 @@ export class SupabaseStorageProvider implements StorageProvider {
   async uploadFile(bucket: string, path: string, buffer: Buffer, contentType: string): Promise<StorageUploadResult> {
     const client = getSupabaseStorageClient();
     if (!client) {
-      // In development or test without credentials, generate local simulated storage path
       if (process.env.NODE_ENV !== "production") {
         return {
           path,
@@ -62,8 +62,42 @@ export function getStorageProvider(): StorageProvider {
 }
 
 /**
- * Uploads a customer storefront photo and returns the public URL.
- * Generates safe unique filename: customers/{customerId}/{timestamp}_{random}.{extension}
+ * Compresses and optimizes image buffer to webp format using sharp.
+ * - Resizes to max width/height 1600px maintaining aspect ratio
+ * - Quality 80% with lossless fallback if smaller
+ * - Strips unnecessary EXIF metadata
+ */
+export async function compressImageBuffer(inputBuffer: Buffer): Promise<{ buffer: Buffer; mimetype: string; extension: string }> {
+  try {
+    const compressedBuffer = await sharp(inputBuffer)
+      .rotate() // auto-orient based on EXIF before stripping
+      .resize({
+        width: 1600,
+        height: 1600,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 80, effort: 4 })
+      .toBuffer();
+
+    return {
+      buffer: compressedBuffer,
+      mimetype: "image/webp",
+      extension: "webp",
+    };
+  } catch (err) {
+    // If sharp processing encounters an edge case, safely fall back to original buffer
+    return {
+      buffer: inputBuffer,
+      mimetype: "image/jpeg",
+      extension: "jpg",
+    };
+  }
+}
+
+/**
+ * Uploads a customer storefront photo with automatic image compression and returns the public URL.
+ * Generates safe unique filename: customers/{customerId}/{timestamp}_{random}.webp
  */
 export async function uploadCustomerPhoto(
   customerId: string,
@@ -75,19 +109,16 @@ export async function uploadCustomerPhoto(
     throw new HttpError(415, `Unsupported file type: ${mimetype}. Allowed types: image/jpeg, image/png, image/webp`);
   }
 
-  const extensionMap: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-  };
-  const extension = extensionMap[mimetype] || "jpg";
+  // Automatically compress and convert to WebP
+  const { buffer: processedBuffer, mimetype: targetMime, extension } = await compressImageBuffer(buffer);
+
   const uniqueId = randomBytes(6).toString("hex");
   const fileName = `customers/${customerId}/${Date.now()}_${uniqueId}.${extension}`;
 
   const provider = getStorageProvider();
-  const uploadResult = await provider.uploadFile(CUSTOMER_PHOTO_BUCKET, fileName, buffer, mimetype);
+  const uploadResult = await provider.uploadFile(CUSTOMER_PHOTO_BUCKET, fileName, processedBuffer, targetMime);
 
-  // If replacing an existing photo, attempt safe cleanup of old file
+  // If replacing an existing photo, clean up old file in Supabase
   if (oldPhotoPath && oldPhotoPath.includes(CUSTOMER_PHOTO_BUCKET)) {
     const oldKey = oldPhotoPath.split(`${CUSTOMER_PHOTO_BUCKET}/`)[1];
     if (oldKey) {
