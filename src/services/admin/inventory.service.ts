@@ -33,12 +33,68 @@ export function createAdminInventoryService(database: PrismaClient) {
         if (loc.type === "SELLER") totalSellerBalance += loc.balance;
       }
 
+      // Movement aggregates for cumulative metrics
+      const movementSummary = await database.stockMovement.groupBy({
+        by: ["type"],
+        _sum: { quantity: true },
+      });
+
+      let totalReceived = 0;
+      let totalTransferred = 0;
+      let totalSold = 0;
+
+      for (const item of movementSummary) {
+        if (item.type === "RECEIPT") totalReceived = item._sum.quantity ?? 0;
+        if (item.type === "TRANSFER") totalTransferred = item._sum.quantity ?? 0;
+        if (item.type === "SALE") totalSold = item._sum.quantity ?? 0;
+      }
+
+      // Group inbound movements by destinationId and type
+      const inboundByLocation = await database.stockMovement.groupBy({
+        by: ["destinationId", "type"],
+        _sum: { quantity: true },
+      });
+
+      // Group outbound movements by sourceId and type
+      const outboundByLocation = await database.stockMovement.groupBy({
+        by: ["sourceId", "type"],
+        _sum: { quantity: true },
+      });
+
+      // Recent movement timestamps per location
+      const recentMovements = await database.stockMovement.findMany({
+        take: 200,
+        orderBy: { createdAt: "desc" },
+        select: { sourceId: true, destinationId: true, createdAt: true },
+      });
+
+      const locationsWithMetrics = locations.map((loc) => {
+        const locId = loc.id;
+        const received = inboundByLocation.find((g) => g.destinationId === locId && g.type === "RECEIPT")?._sum.quantity ?? 0;
+        const transferredIn = inboundByLocation.find((g) => g.destinationId === locId && g.type === "TRANSFER")?._sum.quantity ?? 0;
+        const transferredOut = outboundByLocation.find((g) => g.sourceId === locId && g.type === "TRANSFER")?._sum.quantity ?? 0;
+        const sold = outboundByLocation.find((g) => g.sourceId === locId && g.type === "SALE")?._sum.quantity ?? 0;
+        const lastMove = recentMovements.find((m) => m.sourceId === locId || m.destinationId === locId);
+
+        return {
+          ...loc,
+          received: loc.type === "HQ" ? received : transferredIn,
+          transferredIn,
+          transferredOut,
+          sold,
+          lastMovementAt: lastMove ? lastMove.createdAt.toISOString() : null,
+        };
+      });
+
       return {
         totalStock: totalHqBalance + totalWarehouseBalance + totalSellerBalance,
         hqStock: totalHqBalance,
         warehouseStock: totalWarehouseBalance,
         sellerStock: totalSellerBalance,
-        locations,
+        totalReceived,
+        totalTransferred,
+        totalSold,
+        locations: locationsWithMetrics,
       };
     },
 
@@ -146,6 +202,19 @@ export function createAdminInventoryService(database: PrismaClient) {
           source: { select: { id: true, name: true, type: true } },
           destination: { select: { id: true, name: true, type: true } },
           actor: { select: { id: true, name: true, role: true } },
+          sale: {
+            select: {
+              id: true,
+              paymentMode: true,
+              totalPaise: true,
+              customer: {
+                select: {
+                  shopName: true,
+                  contactName: true,
+                },
+              },
+            },
+          },
         },
       });
 

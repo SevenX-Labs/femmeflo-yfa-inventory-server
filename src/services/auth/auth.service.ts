@@ -47,9 +47,38 @@ export function createAuthService(
 
   return {
     async login(login: string, password: string) {
-      const normalizedLogin = login.includes("@") ? login.trim().toLowerCase() : login.trim();
+      const raw = login.trim();
+      const isEmail = raw.includes("@");
+      let whereClause: any;
+
+      if (isEmail) {
+        whereClause = { email: raw.toLowerCase() };
+      } else {
+        const cleanDigits = raw.replace(/\D/g, "");
+        const candidates = new Set<string>([raw]);
+        if (cleanDigits.length === 10) {
+          candidates.add(`+91${cleanDigits}`);
+          candidates.add(cleanDigits);
+            candidates.add(`0${cleanDigits}`);
+        } else if (cleanDigits.length === 12 && cleanDigits.startsWith("91")) {
+          candidates.add(`+${cleanDigits}`);
+          candidates.add(cleanDigits.slice(2));
+          candidates.add(`0${cleanDigits.slice(2)}`);
+        } else if (cleanDigits.length === 11 && cleanDigits.startsWith("0")) {
+          candidates.add(`+91${cleanDigits.slice(1)}`);
+          candidates.add(cleanDigits.slice(1));
+          candidates.add(cleanDigits);
+        }
+        whereClause = {
+          OR: [
+            { phone: { in: Array.from(candidates) } },
+            { email: raw.toLowerCase() },
+          ],
+        };
+      }
+
       const user = await database.user.findFirst({
-        where: normalizedLogin.includes("@") ? { email: normalizedLogin } : { phone: normalizedLogin },
+        where: whereClause,
         select: authUserSelect,
       });
       const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? await dummyHash);
