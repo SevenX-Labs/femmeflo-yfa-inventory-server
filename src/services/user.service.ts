@@ -4,6 +4,33 @@ import type { CreateManagerInput, CreateSellerInput, ListUsersInput, UpdateUserI
 import { HttpError } from "../middleware/validation.js";
 import { publicUserSelect, type PublicUser } from "./auth/auth.types.js";
 
+export const userListSelect = {
+  ...publicUserSelect,
+  createdAt: true,
+  updatedAt: true,
+  manager: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+    },
+  },
+  stockLocation: {
+    select: {
+      id: true,
+      balance: true,
+    },
+  },
+  _count: {
+    select: {
+      sellers: true,
+      customers: true,
+      sales: true,
+    },
+  },
+} as const;
+
 type Territory = { state?: string | null | undefined; district?: string | null | undefined; village?: string | null | undefined };
 
 export function validateTerritory(territory: Territory) {
@@ -65,7 +92,7 @@ export async function createManager(database: PrismaClient, input: CreateManager
     name: input.name, phone: input.phone, email: input.email ?? null, passwordHash,
     role: "MANAGER", permissions: input.permissions,
     state: input.state ?? null, district: input.district ?? null, village: input.village ?? null,
-  }, select: publicUserSelect });
+  }, select: userListSelect });
 }
 
 export async function listUsers(database: PrismaClient, scope: Prisma.UserWhereInput, query: ListUsersInput) {
@@ -78,14 +105,14 @@ export async function listUsers(database: PrismaClient, scope: Prisma.UserWhereI
   if (query.search) filters.OR = ["name", "email", "phone"].map((field) => ({ [field]: { contains: query.search, mode: "insensitive" } }));
   const where: Prisma.UserWhereInput = { AND: [scope, filters] };
   const [items, total] = await database.$transaction([
-    database.user.findMany({ where, select: publicUserSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
+    database.user.findMany({ where, select: userListSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
     database.user.count({ where }),
   ]);
   return { items, pagination: { page: query.page, pageSize: query.pageSize, total, totalPages: Math.ceil(total / query.pageSize) } };
 }
 
 export async function getUser(database: PrismaClient, scope: Prisma.UserWhereInput, id: string) {
-  const user = await database.user.findFirst({ where: { AND: [scope, { id }] }, select: publicUserSelect });
+  const user = await database.user.findFirst({ where: { AND: [scope, { id }] }, select: userListSelect });
   if (!user) throw new HttpError(404, "User not found");
   return user;
 }
@@ -121,7 +148,7 @@ export async function updateUser(database: PrismaClient, role: "MANAGER" | "SELL
     if (district !== undefined) data.district = district;
     if (village !== undefined) data.village = village;
     if (active !== undefined && active !== existing.active) data.tokenVersion = { increment: 1 };
-    const user = await tx.user.update({ where: { id }, data, select: publicUserSelect });
+    const user = await tx.user.update({ where: { id }, data, select: userListSelect });
     if (role === "SELLER" && name !== undefined) await tx.stockLocation.updateMany({ where: { sellerId: id }, data: { name } });
     return user;
   });
