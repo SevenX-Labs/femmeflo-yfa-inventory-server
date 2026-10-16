@@ -102,6 +102,15 @@ export function createAdminApprovalService(database: PrismaClient) {
           invoiceNumber,
           saleId: sale.id,
           date: new Date().toISOString(),
+          company: {
+            name: settings.companyName,
+            gst: settings.companyGst,
+            pan: settings.companyPan,
+            address: settings.companyAddress,
+            phone: settings.companyPhone,
+            email: settings.companyEmail,
+            terms: settings.invoiceTerms,
+          },
           customer: {
             shopName: sale.customer.shopName,
             contactName: sale.customer.contactName,

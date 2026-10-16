@@ -91,6 +91,23 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
         };
       }
 
+      if (!snapshot.company || !snapshot.company.gst) {
+        const s = await database.businessSettings.findUnique({ where: { id: 1 } });
+        if (s) {
+          snapshot = {
+            ...snapshot,
+            company: {
+              name: s.companyName,
+              gst: s.companyGst,
+              pan: s.companyPan,
+              address: s.companyAddress,
+              phone: s.companyPhone,
+              email: s.companyEmail,
+              terms: s.invoiceTerms,
+            },
+          };
+        }
+      }
       const pdfBuffer = await generateInvoicePdfBuffer(snapshot);
       const isDownload = request.query["download"] === "true";
 

@@ -153,6 +153,15 @@ export function createSellerSalesService(database: PrismaClient) {
           invoiceNumber,
           saleId: sale.id,
           date: sale.createdAt.toISOString(),
+          company: {
+            name: settings.companyName,
+            gst: settings.companyGst,
+            pan: settings.companyPan,
+            address: settings.companyAddress,
+            phone: settings.companyPhone,
+            email: settings.companyEmail,
+            terms: settings.invoiceTerms,
+          },
           customer: {
             shopName: customer.shopName,
             contactName: customer.contactName,

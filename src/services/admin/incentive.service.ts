@@ -63,6 +63,13 @@ export function createAdminIncentiveService(database: PrismaClient) {
       const data: Record<string, unknown> = {};
       if (input.incentiveRatePaise !== undefined) data["incentiveRatePaise"] = input.incentiveRatePaise;
       if (input.minimumPricePaise !== undefined) data["minimumPricePaise"] = input.minimumPricePaise;
+      if (input.companyName !== undefined) data["companyName"] = input.companyName;
+      if (input.companyGst !== undefined) data["companyGst"] = input.companyGst;
+      if (input.companyAddress !== undefined) data["companyAddress"] = input.companyAddress;
+      if (input.companyPhone !== undefined) data["companyPhone"] = input.companyPhone;
+      if (input.companyEmail !== undefined) data["companyEmail"] = input.companyEmail;
+      if (input.companyPan !== undefined) data["companyPan"] = input.companyPan;
+      if (input.invoiceTerms !== undefined) data["invoiceTerms"] = input.invoiceTerms;
 
       return database.businessSettings.update({
         where: { id: 1 },

@@ -171,6 +171,13 @@ model BusinessSettings {
   id                    Int @id @default(1)
   minimumPricePaise     Int @default(2500)
   incentiveRatePaise    Int?
+  companyName           String?  @default("FemmeFlo")
+  companyGst            String?
+  companyAddress        String?
+  companyPhone          String?
+  companyEmail          String?
+  companyPan            String?
+  invoiceTerms          String?
   updatedAt             DateTime @updatedAt
 }
 

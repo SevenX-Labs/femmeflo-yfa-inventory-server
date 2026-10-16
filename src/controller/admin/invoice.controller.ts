@@ -61,6 +61,23 @@ export function createAdminInvoiceController(service: AdminInvoiceService) {
         };
       }
 
+      if (!snapshot.company || !snapshot.company.gst) {
+        const s = await (service as any).getSettings?.();
+        if (s) {
+          snapshot = {
+            ...snapshot,
+            company: {
+              name: s.companyName,
+              gst: s.companyGst,
+              pan: s.companyPan,
+              address: s.companyAddress,
+              phone: s.companyPhone,
+              email: s.companyEmail,
+              terms: s.invoiceTerms,
+            },
+          };
+        }
+      }
       const pdfBuffer = await generateInvoicePdfBuffer(snapshot);
       const isDownload = request.query["download"] === "true";
 

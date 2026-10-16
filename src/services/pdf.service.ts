@@ -12,6 +12,15 @@ export type InvoiceSnapshot = {
   invoiceNumber: string;
   saleId: string;
   date: string;
+  company?: {
+    name?: string | null;
+    gst?: string | null;
+    pan?: string | null;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    terms?: string | null;
+  };
   customer: {
     shopName: string;
     contactName: string;
@@ -81,33 +90,43 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       // 2. Header Section
       const headerY = 50;
 
-      // Brand Logo / Title (Left column: width 240)
+      // Brand Logo / Title & Company GST Details (Left column: width 250)
+      const company = snapshot.company || {};
+      const companyName = company.name || "FemmeFlo";
+
+      let brandY = headerY;
       if (logoPath) {
         try {
-          doc.image(logoPath, left, headerY, { height: 42 });
-          doc.fontSize(8)
-            .font("Helvetica")
-            .fillColor(TEXT_MUTED)
-            .text("FemmeFlo Inventory & Sales System", left, headerY + 46);
+          doc.image(logoPath, left, headerY, { height: 36 });
+          brandY += 40;
         } catch {
-          doc.fontSize(22)
-            .font("Helvetica-Bold")
-            .fillColor(PRIMARY)
-            .text("FEMMEFLO", left, headerY);
-          doc.fontSize(8)
-            .font("Helvetica")
-            .fillColor(TEXT_MUTED)
-            .text("FemmeFlo Inventory & Sales System", left, headerY + 26);
+          doc.fontSize(20).font("Helvetica-Bold").fillColor(PRIMARY).text(companyName.toUpperCase(), left, headerY);
+          brandY += 24;
         }
       } else {
-        doc.fontSize(22)
-          .font("Helvetica-Bold")
-          .fillColor(PRIMARY)
-          .text("FEMMEFLO", left, headerY);
-        doc.fontSize(8)
-          .font("Helvetica")
-          .fillColor(TEXT_MUTED)
-          .text("FemmeFlo Inventory & Sales System", left, headerY + 26);
+        doc.fontSize(20).font("Helvetica-Bold").fillColor(PRIMARY).text(companyName.toUpperCase(), left, headerY);
+        brandY += 24;
+      }
+
+      // Company Name & GST details below logo
+      doc.fontSize(9).font("Helvetica-Bold").fillColor(TEXT_DARK).text(companyName, left, brandY);
+      brandY += 12;
+
+      if (company.gst) {
+        doc.fontSize(8).font("Helvetica-Bold").fillColor(PRIMARY).text(`GSTIN: ${company.gst}`, left, brandY);
+        brandY += 11;
+      }
+      if (company.pan) {
+        doc.fontSize(7.5).font("Helvetica").fillColor(TEXT_MUTED).text(`PAN: ${company.pan}`, left, brandY);
+        brandY += 10;
+      }
+      if (company.address) {
+        doc.fontSize(7.5).font("Helvetica").fillColor(TEXT_MUTED).text(company.address, left, brandY, { width: 230, lineGap: 1 });
+        brandY += 16;
+      }
+      const compContact = [company.phone, company.email].filter(Boolean).join("  •  ");
+      if (compContact) {
+        doc.fontSize(7.5).font("Helvetica").fillColor(TEXT_MUTED).text(compContact, left, brandY, { width: 230 });
       }
 
       // Right Column: TAX INVOICE Header & Metadata block (Right aligned)
@@ -404,7 +423,25 @@ export async function processInvoicePdf(database: PrismaClient, invoiceId: strin
     return invoice.pdfPath;
   }
 
-  const snapshot = invoice.snapshot as unknown as InvoiceSnapshot;
+  let snapshot = invoice.snapshot as unknown as InvoiceSnapshot;
+  // If company details not in snapshot, fetch latest from BusinessSettings
+  if (!snapshot.company || !snapshot.company.gst) {
+    const settings = await database.businessSettings.findUnique({ where: { id: 1 } });
+    if (settings) {
+      snapshot = {
+        ...snapshot,
+        company: {
+          name: settings.companyName,
+          gst: settings.companyGst,
+          pan: settings.companyPan,
+          address: settings.companyAddress,
+          phone: settings.companyPhone,
+          email: settings.companyEmail,
+          terms: settings.invoiceTerms,
+        },
+      };
+    }
+  }
   const pdfBuffer = await generateInvoicePdfBuffer(snapshot);
 
   const dateObj = new Date(invoice.createdAt);

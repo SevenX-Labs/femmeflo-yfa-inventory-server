@@ -21,6 +21,15 @@ export function createCustomerService(database: PrismaClient) {
         throw new HttpError(400, "Invalid or inactive category ID");
       }
 
+      // Check duplicate phone number
+      const existingCustomer = await database.customer.findFirst({
+        where: { phone: input.phone },
+        select: { id: true, shopName: true, phone: true },
+      });
+      if (existingCustomer) {
+        throw new HttpError(409, `A shopkeeper with this phone number (${input.phone}) already exists: ${existingCustomer.shopName}`);
+      }
+
       // 2. Determine sellerId based on user role
       let assignedSellerId: string;
       if (user.role === "SELLER") {
@@ -269,7 +278,16 @@ export function createCustomerService(database: PrismaClient) {
       const updateData: Record<string, unknown> = {};
       if (input.shopName !== undefined) updateData["shopName"] = input.shopName;
       if (input.contactName !== undefined) updateData["contactName"] = input.contactName;
-      if (input.phone !== undefined) updateData["phone"] = input.phone;
+      if (input.phone !== undefined && input.phone !== existing.phone) {
+        const duplicate = await database.customer.findFirst({
+          where: { phone: input.phone, id: { not: id } },
+          select: { id: true, shopName: true },
+        });
+        if (duplicate) {
+          throw new HttpError(409, `Another shopkeeper with this phone number (${input.phone}) already exists: ${duplicate.shopName}`);
+        }
+        updateData["phone"] = input.phone;
+      }
       if (input.email !== undefined) updateData["email"] = input.email;
       if (input.categoryId !== undefined) updateData["categoryId"] = input.categoryId;
       if (input.sellerId !== undefined) updateData["sellerId"] = input.sellerId;
