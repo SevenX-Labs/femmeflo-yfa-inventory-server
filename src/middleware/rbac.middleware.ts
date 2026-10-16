@@ -17,8 +17,8 @@ function normalizeRole(role: SupportedRole): Role {
 const PERMISSION_ALIASES: Record<string, string[]> = {
   onboard_customers: ["onboard_customers", "CUSTOMER_CREATE"],
   CUSTOMER_CREATE: ["onboard_customers", "CUSTOMER_CREATE"],
-  view_customers: ["view_customers", "CUSTOMER_READ"],
-  CUSTOMER_READ: ["view_customers", "CUSTOMER_READ"],
+  view_customers: ["view_customers", "CUSTOMER_READ", "onboard_customers", "CUSTOMER_CREATE"],
+  CUSTOMER_READ: ["view_customers", "CUSTOMER_READ", "onboard_customers", "CUSTOMER_CREATE"],
   manage_sellers: ["manage_sellers", "SELLER_CREATE", "SELLER_READ"],
   SELLER_CREATE: ["manage_sellers", "SELLER_CREATE", "SELLER_READ"],
   SELLER_READ: ["manage_sellers", "SELLER_READ", "SELLER_CREATE"],
