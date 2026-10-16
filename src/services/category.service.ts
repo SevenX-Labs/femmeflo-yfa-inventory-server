@@ -57,6 +57,30 @@ export function createCategoryService(database: PrismaClient) {
         data,
       });
     },
+
+    delete: async (id: string) => {
+      const category = await database.category.findUnique({
+        where: { id },
+        include: { _count: { select: { customers: true } } },
+      });
+
+      if (!category) {
+        throw new HttpError(404, "Category not found");
+      }
+
+      if (category._count.customers > 0) {
+        throw new HttpError(
+          400,
+          `Cannot delete category "${category.name}" because it is linked to ${category._count.customers} customer(s).`
+        );
+      }
+
+      await database.category.delete({
+        where: { id },
+      });
+
+      return { id, name: category.name };
+    },
   };
 }
 

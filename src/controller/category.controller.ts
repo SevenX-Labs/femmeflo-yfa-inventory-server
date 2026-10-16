@@ -45,5 +45,15 @@ export function createCategoryController(service: CategoryService) {
         data: { category },
       });
     },
+
+    delete: async (request: Request, response: Response) => {
+      const id = parseInput(idSchema, request.params["id"]);
+      const result = await service.delete(id);
+      response.json({
+        success: true,
+        message: "Category deleted",
+        data: result,
+      });
+    },
   };
 }
