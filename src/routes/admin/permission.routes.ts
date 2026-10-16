@@ -8,6 +8,8 @@ export function createAdminPermissionRoutes(database: PrismaClient) {
   const controller = createAdminPermissionController(createAdminPermissionService(database));
 
   router.get("/", controller.list);
+  router.patch("/overall", controller.updateOverallPermissions);
+  router.patch("/managers/all/permissions", controller.updateOverallPermissions);
   router.patch("/managers/:id/permissions", controller.updateManagerPermissions);
 
   return router;

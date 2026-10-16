@@ -40,6 +40,30 @@ export function createAdminPermissionService(database: PrismaClient) {
 
       return updated;
     },
+
+    updateOverallPermissions: async (permissions: string[]) => {
+      const uniquePermissions = Array.from(new Set(permissions));
+
+      const result = await database.user.updateMany({
+        where: { role: "MANAGER" },
+        data: { permissions: uniquePermissions },
+      });
+
+      const managers = await database.user.findMany({
+        where: { role: "MANAGER" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          permissions: true,
+          updatedAt: true,
+        },
+      });
+
+      return { count: result.count, permissions: uniquePermissions, managers };
+    },
   };
 }
 

@@ -14,22 +14,35 @@ function normalizeRole(role: SupportedRole): Role {
   return role;
 }
 
-export function requirePermission(permission: Permission): RequestHandler {
-  return (_request, response, next) => {
-    const user = response.locals.authUser as PublicUser | undefined;
-    if (!user) {
-      response.status(401).json({ success: false, message: "Authentication required" });
-      return;
-    }
-    if (user.role !== "SUPER_ADMIN" && (user.role !== "MANAGER" || !user.permissions.includes(permission))) {
-      response.status(403).json({ success: false, message: "Permission denied" });
-      return;
-    }
-    next();
-  };
+const PERMISSION_ALIASES: Record<string, string[]> = {
+  onboard_customers: ["onboard_customers", "CUSTOMER_CREATE"],
+  CUSTOMER_CREATE: ["onboard_customers", "CUSTOMER_CREATE"],
+  view_customers: ["view_customers", "CUSTOMER_READ"],
+  CUSTOMER_READ: ["view_customers", "CUSTOMER_READ"],
+  manage_sellers: ["manage_sellers", "SELLER_CREATE", "SELLER_READ"],
+  SELLER_CREATE: ["manage_sellers", "SELLER_CREATE", "SELLER_READ"],
+  SELLER_READ: ["manage_sellers", "SELLER_READ", "SELLER_CREATE"],
+  view_inventory: ["view_inventory", "INVENTORY_READ"],
+  INVENTORY_READ: ["view_inventory", "INVENTORY_READ"],
+  transfer_inventory: ["transfer_inventory"],
+  approve_sales: ["approve_sales", "SALES_READ"],
+  SALES_READ: ["approve_sales", "SALES_READ"],
+  view_reports: ["view_reports"],
+  manage_managers: ["manage_managers"],
+  manage_permissions: ["manage_permissions"],
+};
+
+export function userHasPermission(userPermissions: string[] | undefined, required: string): boolean {
+  if (!userPermissions || !Array.isArray(userPermissions)) return false;
+  if (userPermissions.includes(required)) return true;
+  const aliases = PERMISSION_ALIASES[required];
+  if (aliases && aliases.some((alias) => userPermissions.includes(alias))) {
+    return true;
+  }
+  return false;
 }
 
-export function requireAnyPermission(permissions: Permission[]): RequestHandler {
+export function requirePermission(permission: Permission): RequestHandler {
   return (_request, response, next) => {
     const user = response.locals.authUser as PublicUser | undefined;
     if (!user) {
@@ -40,7 +53,26 @@ export function requireAnyPermission(permissions: Permission[]): RequestHandler 
       next();
       return;
     }
-    if (user.role === "MANAGER" && permissions.some((p) => user.permissions.includes(p))) {
+    if (user.role === "MANAGER" && userHasPermission(user.permissions, permission)) {
+      next();
+      return;
+    }
+    response.status(403).json({ success: false, message: "Permission denied" });
+  };
+}
+
+export function requireAnyPermission(permissions: (Permission | string)[]): RequestHandler {
+  return (_request, response, next) => {
+    const user = response.locals.authUser as PublicUser | undefined;
+    if (!user) {
+      response.status(401).json({ success: false, message: "Authentication required" });
+      return;
+    }
+    if (user.role === "SUPER_ADMIN") {
+      next();
+      return;
+    }
+    if (user.role === "MANAGER" && permissions.some((p) => userHasPermission(user.permissions, p))) {
       next();
       return;
     }

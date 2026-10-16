@@ -4,7 +4,7 @@ import { parseInput } from "../../middleware/validation.js";
 import { permissionsSchema } from "../user.validation.js";
 import { z } from "zod";
 
-const paramSchema = z.object({ id: z.uuid() });
+const paramSchema = z.object({ id: z.union([z.uuid(), z.literal("all")]) });
 
 export function createAdminPermissionController(service: AdminPermissionService) {
   return {
@@ -17,11 +17,31 @@ export function createAdminPermissionController(service: AdminPermissionService)
       const { id } = parseInput(paramSchema, request.params);
       const { permissions } = parseInput(permissionsSchema, request.body);
 
+      if (id === "all") {
+        const result = await service.updateOverallPermissions(permissions);
+        response.json({
+          success: true,
+          message: `Permissions updated across all ${result.count} managers successfully`,
+          data: result,
+        });
+        return;
+      }
+
       const manager = await service.updateManagerPermissions(id, permissions);
       response.json({
         success: true,
         message: "Manager permissions updated successfully",
         data: { manager },
+      });
+    },
+
+    updateOverallPermissions: async (request: Request, response: Response) => {
+      const { permissions } = parseInput(permissionsSchema, request.body);
+      const result = await service.updateOverallPermissions(permissions);
+      response.json({
+        success: true,
+        message: `Permissions updated across all ${result.count} managers successfully`,
+        data: result,
       });
     },
   };
