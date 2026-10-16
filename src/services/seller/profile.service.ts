@@ -4,43 +4,60 @@ import { HttpError } from "../../middleware/validation.js";
 export type UpdateProfileInput = {
   name?: string | undefined;
   phone?: string | undefined;
+  alternatePhone?: string | undefined;
   email?: string | undefined;
+  address?: string | undefined;
+  pincode?: string | undefined;
+  village?: string | undefined;
+  district?: string | undefined;
+  state?: string | undefined;
+  education?: string | undefined;
+  drivingLicense?: string | undefined;
 };
 
+const sellerProfileSelect = {
+  id: true,
+  name: true,
+  phone: true,
+  alternatePhone: true,
+  email: true,
+  designation: true,
+  employeeCode: true,
+  address: true,
+  pincode: true,
+  aadharNumber: true,
+  drivingLicense: true,
+  education: true,
+  role: true,
+  active: true,
+  state: true,
+  district: true,
+  village: true,
+  createdAt: true,
+  updatedAt: true,
+  manager: {
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+    },
+  },
+  stockLocation: {
+    select: {
+      id: true,
+      name: true,
+      balance: true,
+    },
+  },
+} as const;
 
 export function createSellerProfileService(database: PrismaClient) {
   return {
     getProfile: async (sellerId: string) => {
       const seller = await database.user.findUnique({
         where: { id: sellerId },
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          email: true,
-          role: true,
-          active: true,
-          state: true,
-          district: true,
-          village: true,
-          createdAt: true,
-          updatedAt: true,
-          manager: {
-            select: {
-              id: true,
-              name: true,
-              phone: true,
-              email: true,
-            },
-          },
-          stockLocation: {
-            select: {
-              id: true,
-              name: true,
-              balance: true,
-            },
-          },
-        },
+        select: sellerProfileSelect,
       });
 
       if (!seller || seller.role !== "SELLER") {
@@ -74,39 +91,20 @@ export function createSellerProfileService(database: PrismaClient) {
       const updateData: Record<string, unknown> = {};
       if (input.name !== undefined) updateData["name"] = input.name;
       if (input.phone !== undefined) updateData["phone"] = input.phone;
+      if (input.alternatePhone !== undefined) updateData["alternatePhone"] = input.alternatePhone;
       if (input.email !== undefined) updateData["email"] = input.email;
+      if (input.address !== undefined) updateData["address"] = input.address;
+      if (input.pincode !== undefined) updateData["pincode"] = input.pincode;
+      if (input.village !== undefined) updateData["village"] = input.village;
+      if (input.district !== undefined) updateData["district"] = input.district;
+      if (input.state !== undefined) updateData["state"] = input.state;
+      if (input.education !== undefined) updateData["education"] = input.education;
+      if (input.drivingLicense !== undefined) updateData["drivingLicense"] = input.drivingLicense;
 
       const updated = await database.user.update({
         where: { id: sellerId },
         data: updateData,
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          email: true,
-          role: true,
-          active: true,
-          state: true,
-          district: true,
-          village: true,
-          createdAt: true,
-          updatedAt: true,
-          manager: {
-            select: {
-              id: true,
-              name: true,
-              phone: true,
-              email: true,
-            },
-          },
-          stockLocation: {
-            select: {
-              id: true,
-              name: true,
-              balance: true,
-            },
-          },
-        },
+        select: sellerProfileSelect,
       });
 
       return updated;

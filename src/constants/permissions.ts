@@ -10,6 +10,7 @@ export const ALL_PERMISSIONS = [
   "manage_permissions",
   "SELLER_READ",
   "SELLER_CREATE",
+  "SELLER_UPDATE",
   "CUSTOMER_READ",
   "CUSTOMER_CREATE",
   "SALES_READ",

@@ -68,8 +68,22 @@ export async function createSeller(database: PrismaClient, input: CreateSellerIn
         if (!manager) throw new HttpError(404, "Active Manager not found");
         const territory = sellerTerritory(input, manager);
         const seller = await tx.user.create({ data: {
-          name: input.name, phone: input.phone, email: input.email ?? null,
-          passwordHash, role: "SELLER", managerId: manager.id, ...territory,
+          name: input.name,
+          phone: input.phone,
+          alternatePhone: input.alternatePhone || null,
+          email: input.email ?? null,
+          designation: input.designation || null,
+          employeeCode: input.employeeCode || null,
+          address: input.address || null,
+          pincode: input.pincode || null,
+          aadharNumber: input.aadharNumber || null,
+          drivingLicense: input.drivingLicense || null,
+          education: input.education || null,
+          active: input.active !== undefined ? input.active : true,
+          passwordHash,
+          role: "SELLER",
+          managerId: manager.id,
+          ...territory,
         }, select: publicUserSelect });
         await tx.stockLocation.create({ data: { type: "SELLER", name: seller.name, sellerId: seller.id } });
         return seller;
@@ -102,7 +116,7 @@ export async function listUsers(database: PrismaClient, scope: Prisma.UserWhereI
   for (const field of ["state", "district", "village"] as const) {
     if (query[field]) filters[field] = { equals: query[field], mode: "insensitive" };
   }
-  if (query.search) filters.OR = ["name", "email", "phone"].map((field) => ({ [field]: { contains: query.search, mode: "insensitive" } }));
+  if (query.search) filters.OR = ["name", "email", "phone", "employeeCode", "designation"].map((field) => ({ [field]: { contains: query.search, mode: "insensitive" } }));
   const where: Prisma.UserWhereInput = { AND: [scope, filters] };
   const [items, total] = await database.$transaction([
     database.user.findMany({ where, select: userListSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
@@ -117,9 +131,11 @@ export async function getUser(database: PrismaClient, scope: Prisma.UserWhereInp
   return user;
 }
 
-export async function updateUser(database: PrismaClient, role: "MANAGER" | "SELLER", id: string, input: UpdateUserInput) {
+export async function updateUser(database: PrismaClient, roleOrScope: "MANAGER" | "SELLER" | Prisma.UserWhereInput, id: string, input: UpdateUserInput) {
+  const scope: Prisma.UserWhereInput = typeof roleOrScope === "string" ? { role: roleOrScope } : roleOrScope;
   return database.$transaction(async (tx) => {
-    const existing = await tx.user.findFirst({ where: { id, role }, select: publicUserSelect });
+    const existing = await tx.user.findFirst({ where: { AND: [scope, { id }] }, select: publicUserSelect });
+    const role = existing?.role;
     if (!existing) throw new HttpError(404, "User not found");
     const updated = { ...existing, ...input };
     validateTerritory(updated);
@@ -138,15 +154,27 @@ export async function updateUser(database: PrismaClient, role: "MANAGER" | "SELL
         }
       }
     }
-    const { name, phone, email, active, state, district, village } = input;
+    const {
+      name, phone, alternatePhone, email, active, state, district, village,
+      designation, employeeCode, address, pincode, aadharNumber, drivingLicense, education, managerId
+    } = input;
     const data: Prisma.UserUpdateInput = {};
     if (name !== undefined) data.name = name;
     if (phone !== undefined) data.phone = phone;
-    if (email !== undefined) data.email = email;
+    if (alternatePhone !== undefined) data.alternatePhone = alternatePhone || null;
+    if (email !== undefined) data.email = email || null;
     if (active !== undefined) data.active = active;
-    if (state !== undefined) data.state = state;
-    if (district !== undefined) data.district = district;
-    if (village !== undefined) data.village = village;
+    if (state !== undefined) data.state = state || null;
+    if (district !== undefined) data.district = district || null;
+    if (village !== undefined) data.village = village || null;
+    if (designation !== undefined) data.designation = designation || null;
+    if (employeeCode !== undefined) data.employeeCode = employeeCode || null;
+    if (address !== undefined) data.address = address || null;
+    if (pincode !== undefined) data.pincode = pincode || null;
+    if (aadharNumber !== undefined) data.aadharNumber = aadharNumber || null;
+    if (drivingLicense !== undefined) data.drivingLicense = drivingLicense || null;
+    if (education !== undefined) data.education = education || null;
+    if (managerId !== undefined && role === "SELLER") data.manager = { connect: { id: managerId } };
     if (active !== undefined && active !== existing.active) data.tokenVersion = { increment: 1 };
     const user = await tx.user.update({ where: { id }, data, select: userListSelect });
     if (role === "SELLER" && name !== undefined) await tx.stockLocation.updateMany({ where: { sellerId: id }, data: { name } });

@@ -53,7 +53,7 @@ before(async () => {
 });
 beforeEach(() => {
   user = { id, name: "Test Seller", email: "seller@example.com", phone: "+919876543210", passwordHash: hash,
-    role: "SELLER", active: true, tokenVersion: 0, managerId: null, permissions: [], state: null, district: null, village: null };
+    role: "SELLER", active: true, tokenVersion: 0, managerId: null, permissions: [], state: null, district: null, village: null, alternatePhone: null, designation: null, employeeCode: null, address: null, pincode: null, aadharNumber: null, drivingLicense: null, education: null };
 });
 after(async () => {
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

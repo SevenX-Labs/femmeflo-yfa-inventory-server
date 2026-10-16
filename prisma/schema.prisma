@@ -53,6 +53,14 @@ model User {
   name            String
   email           String?  @unique
   phone           String?  @unique
+  alternatePhone  String?
+  designation     String?
+  employeeCode    String?  @unique
+  address         String?
+  pincode         String?
+  aadharNumber    String?
+  drivingLicense  String?
+  education       String?
   passwordHash    String
   role            Role
   active          Boolean  @default(true)
@@ -80,6 +88,7 @@ model User {
 
   @@index([managerId])
   @@index([role, active])
+  @@index([employeeCode])
 }
 
 model Category {
