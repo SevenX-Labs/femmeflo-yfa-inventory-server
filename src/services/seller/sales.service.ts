@@ -103,8 +103,12 @@ export function createSellerSalesService(database: PrismaClient) {
           throw new HttpError(409, `Insufficient stock balance. Available: ${sellerLoc.balance}, Requested: ${input.quantity}`);
         }
 
-        // Calculate incentive snapshot
-        const incentiveRatePaise = settings.incentiveRatePaise;
+        // Calculate incentive snapshot (user specific rate takes precedence over business default)
+        const sellerUser = await tx.user.findUnique({
+          where: { id: sellerId },
+          select: { incentiveRatePaise: true },
+        });
+        const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise;
         const incentiveAmountPaise = incentiveRatePaise !== null && incentiveRatePaise !== undefined ? input.quantity * incentiveRatePaise : null;
 
         // Deduct seller stock

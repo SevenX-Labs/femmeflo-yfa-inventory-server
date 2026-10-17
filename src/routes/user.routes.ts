@@ -20,6 +20,7 @@ import { createAdminApprovalRoutes } from "./admin/approval.routes.js";
 import { createManagerSalesRoutes } from "./manager/sales.routes.js";
 import { createAdminIncentiveRoutes } from "./admin/incentive.routes.js";
 import { createSellerIncentiveRoutes } from "./seller/incentive.routes.js";
+import { createManagerIncentiveRoutes } from "./manager/incentive.routes.js";
 import { createSellerDashboardRoutes } from "./seller/dashboard.routes.js";
 import { createManagerDashboardRoutes } from "./manager/dashboard.routes.js";
 import { createAdminDashboardRoutes } from "./admin/dashboard.routes.js";
@@ -146,14 +147,15 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   router.use("/manager/inventory", authenticate, requireRole("MANAGER"), createManagerInventoryRoutes(database));
   router.use("/manager/sales", authenticate, requireRole("MANAGER"), createManagerSalesRoutes(database));
   router.use("/manager/dashboard", authenticate, requireRole("MANAGER"), createManagerDashboardRoutes(database));
+  router.use("/manager/incentives", authenticate, requireRole("MANAGER"), createManagerIncentiveRoutes(database));
 
   // Seller routes
-  router.use("/seller/customers", authenticate, requireRole("SELLER"), createSellerCustomerRoutes(database));
-  router.use("/seller/inventory", authenticate, requireRole("SELLER"), createSellerInventoryRoutes(database));
-  router.use("/seller/sales", authenticate, requireRole("SELLER"), createSellerSalesRoutes(database));
-  router.use("/seller/incentives", authenticate, requireRole("SELLER"), createSellerIncentiveRoutes(database));
-  router.use("/seller/dashboard", authenticate, requireRole("SELLER"), createSellerDashboardRoutes(database));
-  router.use("/seller/profile", authenticate, requireRole("SELLER"), createSellerProfileRoutes(database));
+  router.use("/seller/customers", authenticate, requireRole("SELLER", "MANAGER"), createSellerCustomerRoutes(database));
+  router.use("/seller/inventory", authenticate, requireRole("SELLER", "MANAGER"), createSellerInventoryRoutes(database));
+  router.use("/seller/sales", authenticate, requireRole("SELLER", "MANAGER"), createSellerSalesRoutes(database));
+  router.use("/seller/incentives", authenticate, requireRole("SELLER", "MANAGER"), createSellerIncentiveRoutes(database));
+  router.use("/seller/dashboard", authenticate, requireRole("SELLER", "MANAGER"), createSellerDashboardRoutes(database));
+  router.use("/seller/profile", authenticate, requireRole("SELLER", "MANAGER"), createSellerProfileRoutes(database));
 
   return router;
 }

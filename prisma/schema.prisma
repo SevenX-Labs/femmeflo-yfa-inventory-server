@@ -25,6 +25,11 @@ enum StockMovementType {
   SALE
 }
 
+enum IncentiveAdjustmentType {
+  ADD
+  DEDUCT
+}
+
 enum PaymentMode {
   CASH
   BANK
@@ -85,6 +90,13 @@ model User {
   notifications   Notification[]
   resets          PasswordReset[]
   payments        PaymentRecord[]
+  incentiveRatePaise   Int?
+  incentiveRateHistory IncentiveRateHistory[] @relation("UserIncentiveRateHistory")
+  ratesChanged         IncentiveRateHistory[] @relation("IncentiveRateChanger")
+  incentiveAdjustments IncentiveAdjustment[]  @relation("UserIncentiveAdjustments")
+  adjustmentsCreated   IncentiveAdjustment[]  @relation("IncentiveAdjustmentCreator")
+  incentivePayouts     IncentivePayout[]      @relation("UserIncentivePayouts")
+  payoutsCreated       IncentivePayout[]      @relation("IncentivePayoutCreator")
 
   @@index([managerId])
   @@index([role, active])
@@ -280,4 +292,68 @@ model PasswordReset {
   createdAt  DateTime @default(now())
 
   @@index([userId, expiresAt])
+}
+
+model IncentiveRateHistory {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @db.Uuid
+  user               User     @relation("UserIncentiveRateHistory", fields: [userId], references: [id], onDelete: Cascade)
+  previousRatePaise  Int?
+  newRatePaise       Int
+  effectiveDate      DateTime @default(now())
+  reason             String?
+  changedById        String   @db.Uuid
+  changedBy          User     @relation("IncentiveRateChanger", fields: [changedById], references: [id])
+  createdAt          DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([changedById])
+}
+
+model IncentiveAdjustment {
+  id             String                  @id @default(uuid()) @db.Uuid
+  userId         String                  @db.Uuid
+  user           User                    @relation("UserIncentiveAdjustments", fields: [userId], references: [id], onDelete: Cascade)
+  type           IncentiveAdjustmentType
+  amountPaise    Int
+  reason         String
+  adjustmentDate DateTime                @default(now())
+  createdById    String                  @db.Uuid
+  createdBy      User                    @relation("IncentiveAdjustmentCreator", fields: [createdById], references: [id])
+  createdAt      DateTime                @default(now())
+
+  @@index([userId, adjustmentDate])
+  @@index([createdById])
+}
+
+model IncentivePayout {
+  id            String                    @id @default(uuid()) @db.Uuid
+  userId        String                    @db.Uuid
+  user          User                      @relation("UserIncentivePayouts", fields: [userId], references: [id], onDelete: Cascade)
+  amountPaise   Int
+  paymentDate   DateTime                  @default(now())
+  paymentMethod String                    @default("BANK")
+  referenceId   String?
+  remarks       String?
+  requestKey    String?                   @unique
+  createdById   String                    @db.Uuid
+  createdBy     User                      @relation("IncentivePayoutCreator", fields: [createdById], references: [id])
+  createdAt     DateTime                  @default(now())
+  allocations   IncentivePayoutAllocation[]
+
+  @@index([userId, paymentDate])
+  @@index([createdById])
+}
+
+model IncentivePayoutAllocation {
+  id          String          @id @default(uuid()) @db.Uuid
+  payoutId    String          @db.Uuid
+  payout      IncentivePayout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  periodYear  Int
+  periodMonth Int
+  amountPaise Int
+  createdAt   DateTime        @default(now())
+
+  @@index([payoutId])
+  @@index([periodYear, periodMonth])
 }

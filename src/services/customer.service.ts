@@ -45,8 +45,10 @@ export function createCustomerService(database: PrismaClient) {
           throw new HttpError(403, "Seller is not assigned to you");
         }
         assignedSellerId = input.sellerId;
+      } else if (user.role === "MANAGER") {
+        assignedSellerId = user.id;
       } else {
-        throw new HttpError(400, "sellerId is required when onboarding customer as Manager or Admin");
+        throw new HttpError(400, "sellerId is required when onboarding customer as Admin");
       }
 
       const data: Record<string, unknown> = {

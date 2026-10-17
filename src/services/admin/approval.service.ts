@@ -76,7 +76,11 @@ export function createAdminApprovalService(database: PrismaClient) {
           settings = await tx.businessSettings.create({ data: { id: 1, minimumPricePaise: 2500, incentiveRatePaise: null } });
         }
 
-        const incentiveRatePaise = settings.incentiveRatePaise;
+        const sellerUser = await tx.user.findUnique({
+          where: { id: sale.sellerId },
+          select: { incentiveRatePaise: true },
+        });
+        const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise;
         const incentiveAmountPaise = incentiveRatePaise !== null && incentiveRatePaise !== undefined ? sale.quantity * incentiveRatePaise : null;
 
         // Deduct seller stock
