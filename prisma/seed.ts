@@ -16,10 +16,18 @@ async function main() {
     const adminName = process.env.ADMIN_NAME || "Super Admin";
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@femmeflo.in").trim().toLowerCase();
 
+    console.info("Purging all data and restoring clean initial admin seed...");
+
     await database.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(71230421)`;
 
-      // Purge all dummy non-admin data so DB remains 100% clean
+      // 1. Purge all child & incentive records
+      await tx.incentivePayoutAllocation.deleteMany({});
+      await tx.incentivePayout.deleteMany({});
+      await tx.incentiveAdjustment.deleteMany({});
+      await tx.incentiveRateHistory.deleteMany({});
+
+      // 2. Purge orders, transactions & deliveries
       await tx.delivery.deleteMany({});
       await tx.notification.deleteMany({});
       await tx.paymentRecord.deleteMany({});
@@ -28,34 +36,41 @@ async function main() {
       await tx.sale.deleteMany({});
       await tx.customer.deleteMany({});
       await tx.category.deleteMany({});
+      await tx.passwordReset.deleteMany({});
+
+      // 3. Purge non-HQ stock locations and reset HQ balance
       await tx.stockLocation.deleteMany({ where: { type: { not: "HQ" } } });
       await tx.stockLocation.updateMany({ where: { type: "HQ" }, data: { balance: 0 } });
-      await tx.user.deleteMany({ where: { role: { not: "SUPER_ADMIN" } } });
 
-      const existingAdmin = await tx.user.findFirst({
+      // 4. Purge all users except the designated Super Admin email
+      await tx.user.deleteMany({
         where: {
-          OR: [
-            { role: "SUPER_ADMIN" },
-            { email: adminEmail },
-          ],
+          email: { not: adminEmail },
         },
       });
 
+      // 5. Ensure Super Admin account is cleanly configured with default password
+      const passwordHash = await bcrypt.hash(DEFAULT_INITIAL_PASSWORD, 12);
+      const existingAdmin = await tx.user.findFirst({
+        where: { email: adminEmail },
+      });
+
       if (existingAdmin) {
-        // PRESERVE the existing password from DB!
         await tx.user.update({
           where: { id: existingAdmin.id },
           data: {
-            email: adminEmail,
             name: adminName,
+            email: adminEmail,
+            passwordHash,
             role: "SUPER_ADMIN",
             active: true,
+            managerId: null,
+            incentiveRatePaise: null,
+            tokenVersion: { increment: 1 },
           },
         });
-        console.info(`Super Admin verified in DB: ${adminEmail} (password preserved).`);
+        console.info(`Super Admin verified & reset to clean credentials: ${adminEmail}`);
       } else {
-        // First-time auto seed initial default password
-        const passwordHash = await bcrypt.hash(DEFAULT_INITIAL_PASSWORD, 12);
         await tx.user.create({
           data: {
             name: adminName,
@@ -63,21 +78,29 @@ async function main() {
             passwordHash,
             role: "SUPER_ADMIN",
             active: true,
+            managerId: null,
+            incentiveRatePaise: null,
           },
         });
         console.info(`Initial Super Admin created in DB with email: ${adminEmail}`);
       }
 
-      await tx.businessSettings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
+      // 6. Ensure default BusinessSettings and HQ warehouse exist
+      await tx.businessSettings.upsert({
+        where: { id: 1 },
+        create: { id: 1, incentiveRatePaise: 100 },
+        update: { incentiveRatePaise: 100 },
+      });
+
       const hq = await tx.stockLocation.findFirst({ where: { type: "HQ" } });
       if (!hq) {
-        await tx.stockLocation.create({ data: { type: "HQ", name: "HQ Central Warehouse" } });
+        await tx.stockLocation.create({ data: { type: "HQ", name: "HQ Central Warehouse", balance: 0 } });
       }
     });
 
-    console.info("Prisma seed finished: 0 dummy users, clean Super Admin ready in DB.");
+    console.info("Database reset successful: All data removed. Only Super Admin seeded.");
   } catch (error) {
-    console.error("Seed failed:", error);
+    console.error("Seed / cleanup failed:", error);
     process.exitCode = 1;
   } finally {
     await database.$disconnect();
