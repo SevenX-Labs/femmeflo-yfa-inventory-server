@@ -104,7 +104,7 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       let brandY = headerY;
       let drawnLogo = false;
 
-      // Draw Masako Brand Logo only (don't show FemmeFlo logo)
+      // Draw Masako Brand Logo and FemmeFlo Logo side-by-side
       if (masakoLogoPath) {
         try {
           doc.image(masakoLogoPath, left, headerY, { height: 34 });
@@ -114,6 +114,15 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
         }
       }
 
+      if (femmefloLogoPath) {
+        try {
+          const femmefloX = masakoLogoPath ? left + 40 : left;
+          doc.image(femmefloLogoPath, femmefloX, headerY + 4, { height: 26 });
+          drawnLogo = true;
+        } catch (e) {
+          // ignore error
+        }
+      }
       if (drawnLogo) {
         brandY += 40;
       } else {
@@ -442,14 +451,7 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
         .fillColor(TEXT_MUTED)
         .text("For questions, orders, or support, please contact your field officer or administration.", left, signY + 30, { align: "center" });
 
-      // 7. Footer
-      const footerY = 780;
-      doc.moveTo(left, footerY).lineTo(right, footerY).lineWidth(0.5).strokeColor(BORDER_COLOR).stroke();
-      doc.fontSize(7.5)
-        .font("Helvetica")
-        .fillColor(TEXT_MUTED)
-        .text("FemmeFlo Inventory Management System  •  Official Digital Tax Invoice", left, footerY + 8, { align: "center" });
-
+      // 7. Footer removed per user requirement
       doc.end();
     } catch (error) {
       reject(error);
