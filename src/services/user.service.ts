@@ -53,11 +53,10 @@ export function assignedSellerScope(manager: PublicUser): Prisma.UserWhereInput 
 }
 
 function sellerTerritory(input: Territory, manager: Territory) {
-  const mState = cleanStr(manager.state);
-  const mDistrict = cleanStr(manager.district);
-
-  const sState = cleanStr(input.state) ?? mState;
-  const sDistrict = cleanStr(input.district) ?? (sState && mState && sState.toLowerCase() === mState.toLowerCase() ? mDistrict : null);
+  // No strict territory matching required - seller is simply assigned under the manager.
+  // Preserve whatever state, district, and village the seller provides, or fallback to manager if blank.
+  const sState = cleanStr(input.state) ?? cleanStr(manager.state);
+  const sDistrict = cleanStr(input.district) ?? cleanStr(manager.district);
   const sVillage = cleanStr(input.village);
 
   const territory = {
@@ -66,19 +65,6 @@ function sellerTerritory(input: Territory, manager: Territory) {
     village: sVillage,
   };
   validateTerritory(territory);
-
-  if (mState && territory.state && mState.toLowerCase() !== territory.state.toLowerCase()) {
-    throw new HttpError(
-      403,
-      `Field officer state (${territory.state}) does not match manager assigned state (${mState})`
-    );
-  }
-  if (mDistrict && territory.district && mDistrict.toLowerCase() !== territory.district.toLowerCase()) {
-    throw new HttpError(
-      403,
-      `Field officer district (${territory.district}) does not match manager assigned district (${mDistrict})`
-    );
-  }
 
   return territory;
 }
@@ -190,17 +176,7 @@ export async function updateUser(database: PrismaClient, roleOrScope: "MANAGER" 
       sellerTerritory(updated, manager);
     }
     if (role === "MANAGER" && ["state", "district"].some((field) => field in input)) {
-      const sellers = await tx.user.findMany({ where: { managerId: id, role: "SELLER" }, select: { state: true, district: true, village: true } });
-      const nextState = cleanStr(updated.state);
-      const nextDistrict = cleanStr(updated.district);
-      for (const seller of sellers) {
-        if (nextState && (!seller.state || seller.state.toLowerCase() !== nextState.toLowerCase())) {
-          throw new HttpError(409, "Existing Sellers fall outside the requested Manager territory");
-        }
-        if (nextDistrict && (!seller.district || seller.district.toLowerCase() !== nextDistrict.toLowerCase())) {
-          throw new HttpError(409, "Existing Sellers fall outside the requested Manager territory");
-        }
-      }
+      // Territory matching removed: manager territory can be updated without restricting assigned sellers
     }
     const {
       name, phone, alternatePhone, email, active, state, district, village,
