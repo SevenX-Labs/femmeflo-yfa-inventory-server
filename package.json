@@ -29,7 +29,7 @@
     "test:postman": "prisma generate && tsx scripts/test-postman.ts",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate deploy && tsx scripts/clean-database.ts",
+    "db:migrate": "prisma migrate deploy",
     "db:bootstrap-admin": "tsx prisma/seed.ts",
     "admin:reset": "tsx scripts/reset-admin.ts",
     "docs:api": "node scripts/generate-api-docs.mjs",

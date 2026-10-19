@@ -22,7 +22,8 @@ export type AuthUser = {
   district: string | null;
   village: string | null;
   permissions: string[];
-};
+  isSeller?: boolean;
+};                       
 
 export type PublicUser = Omit<AuthUser, "passwordHash" | "tokenVersion">;
 
@@ -45,6 +46,7 @@ export const authUserSelect = {
   tokenVersion: true,
   managerId: true,
   permissions: true,
+  isSeller: true,
   state: true,
   district: true,
   village: true,
@@ -71,6 +73,7 @@ export function toPublicUser(user: AuthUser): PublicUser {
     district: user.district,
     village: user.village,
     permissions: user.permissions,
+    isSeller: user.isSeller ?? false,
   };
 }
 
@@ -91,6 +94,7 @@ export const publicUserSelect = {
   active: true,
   managerId: true,
   permissions: true,
+  isSeller: true,
   state: true,
   district: true,
   village: true,

@@ -49,6 +49,14 @@ export function validateTerritory(territory: Territory) {
 }
 
 export function assignedSellerScope(manager: PublicUser): Prisma.UserWhereInput {
+  if (manager.isSeller) {
+    return {
+      OR: [
+        { role: "SELLER", managerId: manager.id },
+        { id: manager.id },
+      ],
+    };
+  }
   return { role: "SELLER", managerId: manager.id };
 }
 
@@ -115,27 +123,45 @@ export async function createManager(database: PrismaClient, input: CreateManager
   validateTerritory(input);
   const passwordHash = await bcrypt.hash(input.password, 12);
   const employeeCode = cleanStr(input.employeeCode);
-  return database.user.create({
-    data: {
-      name: input.name.trim(),
-      phone: input.phone,
-      alternatePhone: cleanStr(input.alternatePhone),
-      email: cleanStr(input.email),
-      employeeCode,
-      designation: cleanStr(input.designation) || "Regional Manager",
-      address: cleanStr(input.address),
-      pincode: cleanStr(input.pincode),
-      aadharNumber: cleanStr(input.aadharNumber),
-      drivingLicense: cleanStr(input.drivingLicense),
-      education: cleanStr(input.education),
-      passwordHash,
-      role: "MANAGER",
-      permissions: input.permissions,
-      state: cleanStr(input.state),
-      district: cleanStr(input.district),
-      village: cleanStr(input.village),
-    },
-    select: userListSelect,
+  const isSeller = Boolean(input.isSeller);
+
+  return database.$transaction(async (tx) => {
+    const manager = await tx.user.create({
+      data: {
+        name: input.name.trim(),
+        phone: input.phone,
+        alternatePhone: cleanStr(input.alternatePhone),
+        email: cleanStr(input.email),
+        employeeCode,
+        designation: cleanStr(input.designation) || (isSeller ? "Regional Manager & Field Seller" : "Regional Manager"),
+        address: cleanStr(input.address),
+        pincode: cleanStr(input.pincode),
+        aadharNumber: cleanStr(input.aadharNumber),
+        drivingLicense: cleanStr(input.drivingLicense),
+        education: cleanStr(input.education),
+        passwordHash,
+        role: "MANAGER",
+        isSeller,
+        permissions: input.permissions,
+        state: cleanStr(input.state),
+        district: cleanStr(input.district),
+        village: cleanStr(input.village),
+      },
+      select: userListSelect,
+    });
+
+    if (isSeller) {
+      await tx.stockLocation.create({
+        data: {
+          type: "SELLER",
+          name: `${manager.name} Stock`,
+          sellerId: manager.id,
+          balance: 0,
+        },
+      });
+    }
+
+    return manager;
   });
 }
 
@@ -180,7 +206,7 @@ export async function updateUser(database: PrismaClient, roleOrScope: "MANAGER" 
     }
     const {
       name, phone, alternatePhone, email, active, state, district, village,
-      designation, employeeCode, address, pincode, aadharNumber, drivingLicense, education, managerId
+      designation, employeeCode, address, pincode, aadharNumber, drivingLicense, education, managerId, isSeller
     } = input;
     const data: Prisma.UserUpdateInput = {};
     if (name !== undefined) data.name = name.trim();
@@ -188,6 +214,7 @@ export async function updateUser(database: PrismaClient, roleOrScope: "MANAGER" 
     if (alternatePhone !== undefined) data.alternatePhone = cleanStr(alternatePhone);
     if (email !== undefined) data.email = cleanStr(email);
     if (active !== undefined) data.active = active;
+    if (isSeller !== undefined) data.isSeller = isSeller;
     if (state !== undefined) data.state = cleanStr(state);
     if (district !== undefined) data.district = cleanStr(district);
     if (village !== undefined) data.village = cleanStr(village);
@@ -203,7 +230,20 @@ export async function updateUser(database: PrismaClient, roleOrScope: "MANAGER" 
     }
     if (active !== undefined && active !== existing.active) data.tokenVersion = { increment: 1 };
     const user = await tx.user.update({ where: { id }, data, select: userListSelect });
-    if (role === "SELLER" && name !== undefined) await tx.stockLocation.updateMany({ where: { sellerId: id }, data: { name: name.trim() } });
+    if ((role === "SELLER" || user.isSeller) && name !== undefined) await tx.stockLocation.updateMany({ where: { sellerId: id }, data: { name: `${name.trim()} Stock` } });
+    if (isSeller === true) {
+      const existingLoc = await tx.stockLocation.findFirst({ where: { sellerId: id } });
+      if (!existingLoc) {
+        await tx.stockLocation.create({
+          data: {
+            type: "SELLER",
+            name: `${user.name} Stock`,
+            sellerId: id,
+            balance: 0,
+          },
+        });
+      }
+    }
     return user;
   });
 }

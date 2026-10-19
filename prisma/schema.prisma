@@ -69,6 +69,7 @@ model User {
   passwordHash    String
   role            Role
   active          Boolean  @default(true)
+  isSeller        Boolean  @default(false)
   tokenVersion    Int      @default(0)
   managerId       String?  @db.Uuid
   manager         User?    @relation("ManagerSellers", fields: [managerId], references: [id])
@@ -101,6 +102,7 @@ model User {
   @@index([managerId])
   @@index([role, active])
   @@index([employeeCode])
+  @@index([isSeller])
 }
 
 model Category {

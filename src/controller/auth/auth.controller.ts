@@ -55,6 +55,21 @@ export function createAuthController(auth: AuthService) {
           return;
         }
         if (expectedRole === "SELLER" && data.user.role !== "SELLER") {
+          if (data.user.isSeller) {
+            response.json({
+              success: true,
+              message: `${label} login successful`,
+              data: {
+                ...data,
+                user: {
+                  ...data.user,
+                  role: "SELLER" as const,
+                  isSeller: true,
+                },
+              },
+            });
+            return;
+          }
           response.status(403).json({ success: false, message: `Access denied. ${label} role required.` });
           return;
         }

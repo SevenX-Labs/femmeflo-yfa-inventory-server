@@ -11,6 +11,7 @@ export type UserContext = {
   state?: string | null;
   district?: string | null;
   village?: string | null;
+  isSeller?: boolean;
 };
 
 function serializeCustomer<T extends { latitude?: unknown; longitude?: unknown }>(customer: T): T & { latitude: number | null; longitude: number | null } {
@@ -41,16 +42,16 @@ export function createCustomerService(database: PrismaClient) {
 
       // 2. Determine sellerId based on user role
       let assignedSellerId: string;
-      if (user.role === "SELLER") {
+      if (user.role === "SELLER" || (user.role === "MANAGER" && user.isSeller && (!input.sellerId || input.sellerId === user.id))) {
         assignedSellerId = user.id;
       } else if (input.sellerId) {
         // Verify seller exists and is active
         const seller = await database.user.findUnique({ where: { id: input.sellerId } });
-        if (!seller || seller.role !== "SELLER" || !seller.active) {
+        if (!seller || (seller.role !== "SELLER" && !seller.isSeller) || !seller.active) {
           throw new HttpError(400, "Invalid or inactive seller ID");
         }
-        // If Manager, ensure seller is assigned to this Manager
-        if (user.role === "MANAGER" && seller.managerId !== user.id) {
+        // If Manager, ensure seller is assigned to this Manager (or is the manager)
+        if (user.role === "MANAGER" && seller.managerId !== user.id && seller.id !== user.id) {
           throw new HttpError(403, "Seller is not assigned to you");
         }
         assignedSellerId = input.sellerId;
@@ -206,7 +207,7 @@ export function createCustomerService(database: PrismaClient) {
       if (user.role === "SELLER") {
         where.sellerId = user.id;
       } else if (user.role === "MANAGER") {
-        const managerWhere: Prisma.CustomerWhereInput = { seller: { managerId: user.id } };
+        const managerWhere: Prisma.CustomerWhereInput = { OR: [{ seller: { managerId: user.id } }, { sellerId: user.id }] };
         if (user.state) managerWhere.state = { equals: user.state, mode: "insensitive" };
         if (user.district) managerWhere.district = { equals: user.district, mode: "insensitive" };
         if (user.village) managerWhere.village = { equals: user.village, mode: "insensitive" };

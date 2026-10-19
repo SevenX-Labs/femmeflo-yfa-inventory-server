@@ -90,6 +90,10 @@ export function requireRole(...roles: SupportedRole[]): RequestHandler {
       return;
     }
     if (!normalized.includes(user.role)) {
+      if (normalized.includes("SELLER") && user.isSeller) {
+        next();
+        return;
+      }
       response.status(403).json({ success: false, message: "Access denied" });
       return;
     }

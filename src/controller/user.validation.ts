@@ -45,6 +45,7 @@ export const createManagerSchema = z
     ...userFields,
     password: passwordSchema,
     permissions: permissionsSchema.shape.permissions.default([]),
+    isSeller: z.boolean().default(false),
   })
   .refine(refineNoDuplicatePhone, {
     message: "Alternate phone number cannot be the same as primary phone number",
@@ -79,6 +80,7 @@ export const updateUserSchema = z
     ...userFields,
     managerId: z.uuid().nullish().or(z.literal("")),
     active: z.boolean(),
+    isSeller: z.boolean(),
   })
   .partial()
   .refine((value) => Object.keys(value).length > 0, "Provide at least one field")
