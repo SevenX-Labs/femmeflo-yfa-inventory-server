@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import type { CreateCustomerInput, ListCustomersInput, UpdateCustomerInput } from "../controller/customer.validation.js";
 import { HttpError } from "../middleware/validation.js";
 import { uploadCustomerPhoto } from "./storage.service.js";
+import { forwardGeocode, isGpsAccuracyPoor, buildAddressQuery } from "./geocoding.service.js";
 
 export type UserContext = {
   id: string;
@@ -77,8 +78,38 @@ export function createCustomerService(database: PrismaClient) {
 
       if (input.email !== undefined) data["email"] = input.email;
       if (input.photoPath !== undefined) data["photoPath"] = input.photoPath;
-      if (input.latitude !== undefined) data["latitude"] = new Prisma.Decimal(input.latitude);
-      if (input.longitude !== undefined) data["longitude"] = new Prisma.Decimal(input.longitude);
+
+      let finalLat = input.latitude;
+      let finalLng = input.longitude;
+
+      const needsGeocodeFallback =
+        (finalLat === undefined && finalLng === undefined) ||
+        isGpsAccuracyPoor(input.accuracy);
+
+      if (needsGeocodeFallback) {
+        const addressQuery = buildAddressQuery({
+          shopNumber: input.shopNumber,
+          streetName: input.streetName,
+          village: input.village,
+          district: input.district,
+          state: input.state,
+          pincode: input.pincode,
+        });
+        if (addressQuery.length >= 3) {
+          try {
+            const geocoded = await forwardGeocode(addressQuery);
+            if (geocoded) {
+              finalLat = geocoded.latitude;
+              finalLng = geocoded.longitude;
+            }
+          } catch {
+            // Geocoding is best-effort; proceed without coordinates
+          }
+        }
+      }
+
+      if (finalLat !== undefined) data["latitude"] = new Prisma.Decimal(finalLat);
+      if (finalLng !== undefined) data["longitude"] = new Prisma.Decimal(finalLng);
 
       const customer = await database.customer.create({
         data: data as Prisma.CustomerCreateInput,
@@ -310,8 +341,34 @@ export function createCustomerService(database: PrismaClient) {
       if (input.village !== undefined) updateData["village"] = input.village;
       if (input.photoPath !== undefined) updateData["photoPath"] = input.photoPath;
       if (input.active !== undefined) updateData["active"] = input.active;
-      if (input.latitude !== undefined) updateData["latitude"] = new Prisma.Decimal(input.latitude);
-      if (input.longitude !== undefined) updateData["longitude"] = new Prisma.Decimal(input.longitude);
+
+      let finalLat = input.latitude;
+      let finalLng = input.longitude;
+
+      if (isGpsAccuracyPoor(input.accuracy) && (finalLat !== undefined || finalLng !== undefined)) {
+        const addressQuery = buildAddressQuery({
+          shopNumber: input.shopNumber ?? existing.shopNumber ?? undefined,
+          streetName: input.streetName ?? existing.streetName ?? undefined,
+          village: input.village ?? existing.village ?? undefined,
+          district: input.district ?? existing.district ?? undefined,
+          state: input.state ?? existing.state ?? undefined,
+          pincode: input.pincode ?? existing.pincode ?? undefined,
+        });
+        if (addressQuery.length >= 3) {
+          try {
+            const geocoded = await forwardGeocode(addressQuery);
+            if (geocoded) {
+              finalLat = geocoded.latitude;
+              finalLng = geocoded.longitude;
+            }
+          } catch {
+            // best-effort
+          }
+        }
+      }
+
+      if (finalLat !== undefined) updateData["latitude"] = new Prisma.Decimal(finalLat);
+      if (finalLng !== undefined) updateData["longitude"] = new Prisma.Decimal(finalLng);
 
       const updated = await database.customer.update({
         where: { id },

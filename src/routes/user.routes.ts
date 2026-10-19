@@ -28,6 +28,7 @@ import { createAdminInvoiceRoutes } from "./admin/invoice.routes.js";
 import { createAdminPermissionRoutes } from "./admin/permission.routes.js";
 import { createAdminReportRoutes } from "./admin/report.routes.js";
 import { createSellerProfileRoutes } from "./seller/profile.routes.js";
+import { createGeoRoutes } from "./geo.routes.js";
 import { generateInvoicePdfBuffer, type InvoiceSnapshot } from "../services/pdf.service.js";
 
 export function createUserRoutes(database: PrismaClient, auth: AuthService) {
@@ -122,6 +123,9 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
       next(err);
     }
   });
+
+  // Geocoding
+  router.use("/geo", authenticate, createGeoRoutes());
 
   // Categories
   router.use("/categories", authenticate, createCategoryRoutes(database));

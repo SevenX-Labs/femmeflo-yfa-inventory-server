@@ -25,6 +25,7 @@ export const createCustomerSchema = z.strictObject({
   imageUrl: z.string().trim().max(500).optional(),
   latitude: z.union([z.number(), z.string()]).optional(),
   longitude: z.union([z.number(), z.string()]).optional(),
+  accuracy: z.union([z.number(), z.coerce.number()]).optional(),
 })
 .superRefine((data, ctx) => {
   const result = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
@@ -44,6 +45,7 @@ export const createCustomerSchema = z.strictObject({
     address: computedAddress || undefined,
     latitude: coords.latitude,
     longitude: coords.longitude,
+    accuracy: data.accuracy,
     photoPath: data.photoPath ?? data.photoUrl ?? data.imageUrl,
   };
 });
@@ -67,6 +69,7 @@ export const updateCustomerSchema = z.strictObject({
   imageUrl: z.string().trim().max(500).optional(),
   latitude: z.union([z.number(), z.string()]).optional(),
   longitude: z.union([z.number(), z.string()]).optional(),
+  accuracy: z.union([z.number(), z.coerce.number()]).optional(),
   active: z.boolean().optional(),
 })
 .refine((value) => Object.keys(value).length > 0, "Provide at least one field")
@@ -87,6 +90,7 @@ export const updateCustomerSchema = z.strictObject({
     ...data,
     latitude: coords.latitude,
     longitude: coords.longitude,
+    accuracy: data.accuracy,
     photoPath: photo !== undefined ? photo : data.photoPath,
   };
 });

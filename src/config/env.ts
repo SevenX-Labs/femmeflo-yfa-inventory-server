@@ -31,6 +31,8 @@ const environmentSchema = z.object({
   MSG91_INTEGRATED_NUMBER: z.string().trim().optional(),
   // Retry configuration
   NOTIFICATION_MAX_RETRIES: z.coerce.number().int().min(1).max(10).default(3),
+  // Google Maps Geocoding
+  GOOGLE_MAPS_API_KEY: z.string().trim().optional(),
 });
 
 export function loadEnvironment(values: NodeJS.ProcessEnv = process.env) {
