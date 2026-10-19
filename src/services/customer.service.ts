@@ -263,7 +263,7 @@ export function createCustomerService(database: PrismaClient) {
         throw new HttpError(404, "Customer not found or outside assigned scope");
       }
       if (user.role === "MANAGER") {
-        if (customer.seller.managerId !== user.id) {
+        if (customer.sellerId !== user.id && customer.seller.managerId !== user.id) {
           throw new HttpError(404, "Customer not found or outside assigned scope");
         }
         if (user.state && customer.state.toLowerCase() !== user.state.toLowerCase()) {
@@ -293,7 +293,7 @@ export function createCustomerService(database: PrismaClient) {
       if (user.role === "SELLER" && existing.sellerId !== user.id) {
         throw new HttpError(404, "Customer not found or outside assigned scope");
       }
-      if (user.role === "MANAGER" && existing.seller.managerId !== user.id) {
+      if (user.role === "MANAGER" && existing.sellerId !== user.id && existing.seller.managerId !== user.id) {
         throw new HttpError(404, "Customer not found or outside assigned scope");
       }
 
@@ -395,7 +395,7 @@ export function createCustomerService(database: PrismaClient) {
       if (user.role === "SELLER" && existing.sellerId !== user.id) {
         throw new HttpError(403, "Customer is not assigned to you");
       }
-      if (user.role === "MANAGER" && existing.seller.managerId !== user.id) {
+      if (user.role === "MANAGER" && existing.sellerId !== user.id && existing.seller.managerId !== user.id) {
         throw new HttpError(403, "Customer is not under your assigned sellers");
       }
 
