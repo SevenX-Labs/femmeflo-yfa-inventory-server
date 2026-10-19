@@ -29,6 +29,8 @@ import { createAdminPermissionRoutes } from "./admin/permission.routes.js";
 import { createAdminReportRoutes } from "./admin/report.routes.js";
 import { createSellerProfileRoutes } from "./seller/profile.routes.js";
 import { createGeoRoutes } from "./geo.routes.js";
+import { createAdminProductRoutes } from "./admin/product.routes.js";
+import { createProductListRoutes } from "./product.routes.js";
 import { generateInvoicePdfBuffer, type InvoiceSnapshot } from "../services/pdf.service.js";
 
 export function createUserRoutes(database: PrismaClient, auth: AuthService) {
@@ -143,8 +145,10 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   router.use("/admin/invoices", authenticate, requireRole("SUPER_ADMIN"), createAdminInvoiceRoutes(database));
   router.use("/admin/permissions", authenticate, requireRole("SUPER_ADMIN"), createAdminPermissionRoutes(database));
   router.use("/admin/reports", authenticate, requireRole("SUPER_ADMIN"), createAdminReportRoutes(database));
+  router.use("/admin/products", authenticate, requireRole("SUPER_ADMIN"), createAdminProductRoutes(database));
 
   // Manager routes
+  router.use("/manager/products", authenticate, requireRole("MANAGER"), createProductListRoutes(database));
   router.use("/manager/sellers", authenticate, requireRole("MANAGER"), createManagerSellerRoutes(database));
   router.use("/manager/customers", authenticate, requireRole("MANAGER"), createManagerCustomerRoutes(database));
   router.use("/manager/inventory", authenticate, requireRole("MANAGER"), createManagerInventoryRoutes(database));
@@ -153,6 +157,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   router.use("/manager/incentives", authenticate, requireRole("MANAGER"), createManagerIncentiveRoutes(database));
 
   // Seller routes
+  router.use("/seller/products", authenticate, requireRole("SELLER", "MANAGER"), createProductListRoutes(database));
   router.use("/seller/customers", authenticate, requireRole("SELLER", "MANAGER"), createSellerCustomerRoutes(database));
   router.use("/seller/inventory", authenticate, requireRole("SELLER", "MANAGER"), createSellerInventoryRoutes(database));
   router.use("/seller/sales", authenticate, requireRole("SELLER", "MANAGER"), createSellerSalesRoutes(database));

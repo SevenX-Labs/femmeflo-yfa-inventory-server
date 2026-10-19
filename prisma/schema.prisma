@@ -147,6 +147,37 @@ model Customer {
   @@index([pincode])
 }
 
+model Product {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  sku               String?  @unique
+  basePricePaise    Int
+  minimumPricePaise Int
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  balances          ProductBalance[]
+  saleItems         SaleLineItem[]
+  movements         StockMovement[]
+
+  @@index([active])
+}
+
+model ProductBalance {
+  id              String        @id @default(uuid()) @db.Uuid
+  productId       String        @db.Uuid
+  product         Product       @relation(fields: [productId], references: [id])
+  stockLocationId String        @db.Uuid
+  stockLocation   StockLocation @relation(fields: [stockLocationId], references: [id])
+  balance         Int           @default(0)
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([productId, stockLocationId])
+  @@index([stockLocationId])
+  @@index([productId])
+}
+
 model StockLocation {
   id                  String @id @default(uuid()) @db.Uuid
   type                StockLocationType
@@ -158,6 +189,7 @@ model StockLocation {
   updatedAt           DateTime @updatedAt
   outboundMovements   StockMovement[] @relation("MovementSource")
   inboundMovements    StockMovement[] @relation("MovementDestination")
+  productBalances     ProductBalance[]
 
   @@index([type])
 }
@@ -172,13 +204,17 @@ model StockMovement {
   destination     StockLocation? @relation("MovementDestination", fields: [destinationId], references: [id])
   actorId         String @db.Uuid
   actor           User @relation(fields: [actorId], references: [id])
-  saleId          String? @unique @db.Uuid
+  saleId          String? @db.Uuid
   sale            Sale? @relation(fields: [saleId], references: [id])
+  productId       String? @db.Uuid
+  product         Product? @relation(fields: [productId], references: [id])
   requestKey      String? @unique
   createdAt       DateTime @default(now())
 
   @@index([sourceId, createdAt])
   @@index([destinationId, createdAt])
+  @@index([saleId])
+  @@index([productId])
 }
 
 model BusinessSettings {
@@ -192,6 +228,7 @@ model BusinessSettings {
   companyEmail          String?
   companyPan            String?
   invoiceTerms          String?
+  defaultProductId      String? @db.Uuid
   updatedAt             DateTime @updatedAt
 }
 
@@ -201,8 +238,8 @@ model Sale {
   seller                User @relation("SellerSales", fields: [sellerId], references: [id])
   customerId            String @db.Uuid
   customer              Customer @relation(fields: [customerId], references: [id])
-  quantity              Int
-  unitPricePaise        Int
+  quantity              Int    @default(0)
+  unitPricePaise        Int    @default(0)
   totalPaise            Int
   paymentMode           PaymentMode
   status                SaleStatus
@@ -217,7 +254,8 @@ model Sale {
   requestKey            String? @unique
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
-  movement              StockMovement?
+  movements             StockMovement[]
+  lineItems             SaleLineItem[]
   invoice               Invoice?
   payments              PaymentRecord[]
   notifications         Notification[]
@@ -225,6 +263,20 @@ model Sale {
   @@index([sellerId, createdAt])
   @@index([status, createdAt])
   @@index([customerId])
+}
+
+model SaleLineItem {
+  id              String  @id @default(uuid()) @db.Uuid
+  saleId          String  @db.Uuid
+  sale            Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId       String  @db.Uuid
+  product         Product @relation(fields: [productId], references: [id])
+  quantity        Int
+  unitPricePaise  Int
+  totalPaise      Int
+
+  @@index([saleId])
+  @@index([productId])
 }
 
 model PaymentRecord {

@@ -36,6 +36,37 @@ export function createSellerInventoryService(database: PrismaClient) {
       const totalAssigned = totalAssignedResult._sum.quantity ?? 0;
       const totalSold = totalSoldResult._sum.quantity ?? 0;
 
+      // Per-product balances
+      const productBalances = await database.productBalance.findMany({
+        where: { stockLocationId: location.id },
+        include: { product: { select: { id: true, name: true, sku: true } } },
+      });
+
+      // Per-product assigned (transfers in) and sold
+      const perProductAssigned = await database.stockMovement.groupBy({
+        by: ["productId"],
+        _sum: { quantity: true },
+        where: { destinationId: location.id, type: "TRANSFER", productId: { not: null } },
+      });
+
+      const perProductSold = await database.stockMovement.groupBy({
+        by: ["productId"],
+        _sum: { quantity: true },
+        where: { sourceId: location.id, type: "SALE", productId: { not: null } },
+      });
+
+      const assignedMap = new Map(perProductAssigned.map((r) => [r.productId!, r._sum.quantity ?? 0]));
+      const soldMap = new Map(perProductSold.map((r) => [r.productId!, r._sum.quantity ?? 0]));
+
+      const products = productBalances.map((pb) => ({
+        productId: pb.product.id,
+        productName: pb.product.name,
+        productSku: pb.product.sku,
+        balance: pb.balance,
+        assigned: assignedMap.get(pb.productId) ?? 0,
+        sold: soldMap.get(pb.productId) ?? 0,
+      }));
+
       return {
         locationId: location.id,
         name: location.name,
@@ -46,6 +77,7 @@ export function createSellerInventoryService(database: PrismaClient) {
         soldPackets: totalSold,
         remaining: location.balance,
         balance: location.balance,
+        products,
       };
     },
 

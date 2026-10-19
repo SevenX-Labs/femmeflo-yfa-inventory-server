@@ -1,8 +1,19 @@
 import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
-import type { CreateWarehouseInput, CreateReceiptInput, CreateTransferInput, ListTransactionsInput, UpdateLocationBalanceInput } from "../../controller/inventory.validation.js";
+import type { CreateWarehouseInput, ListTransactionsInput, UpdateLocationBalanceInput } from "../../controller/inventory.validation.js";
 import { HttpError } from "../../middleware/validation.js";
 
+type CreateReceiptInput = { quantity: number } | { items: Array<{ productId: string; quantity: number }> };
+type CreateTransferInput = { sourceId: string; destinationId: string; quantity: number } | { sourceId: string; destinationId: string; items: Array<{ productId: string; quantity: number }> };
+
 export function createAdminInventoryService(database: PrismaClient) {
+  async function resolveDefaultProductItems(quantity: number) {
+    const settings = await database.businessSettings.findUnique({ where: { id: 1 } });
+    if (!settings?.defaultProductId) {
+      throw new HttpError(400, "No default product configured. Please run the multi-product migration first.");
+    }
+    return [{ productId: settings.defaultProductId, quantity }];
+  }
+
   // Helper to ensure HQ exists
   async function getOrCreateHQ(tx: Prisma.TransactionClient | PrismaClient = database) {
     let hq = await tx.stockLocation.findFirst({ where: { type: "HQ" } });
@@ -86,6 +97,37 @@ export function createAdminInventoryService(database: PrismaClient) {
         };
       });
 
+      // Per-product balance summary
+      const productBalances = await database.productBalance.findMany({
+        include: { product: { select: { id: true, name: true, sku: true } }, stockLocation: { select: { id: true, type: true } } },
+      });
+
+      const productMap = new Map<string, { id: string; name: string; sku: string | null; totalBalance: number; hqBalance: number; warehouseBalance: number; sellerBalance: number }>();
+      for (const pb of productBalances) {
+        let entry = productMap.get(pb.productId);
+        if (!entry) {
+          entry = { id: pb.product.id, name: pb.product.name, sku: pb.product.sku, totalBalance: 0, hqBalance: 0, warehouseBalance: 0, sellerBalance: 0 };
+          productMap.set(pb.productId, entry);
+        }
+        entry.totalBalance += pb.balance;
+        if (pb.stockLocation.type === "HQ") entry.hqBalance += pb.balance;
+        else if (pb.stockLocation.type === "WAREHOUSE") entry.warehouseBalance += pb.balance;
+        else if (pb.stockLocation.type === "SELLER") entry.sellerBalance += pb.balance;
+      }
+
+      // Per-location product balances
+      const locationProductMap = new Map<string, Array<{ productId: string; productName: string; balance: number }>>();
+      for (const pb of productBalances) {
+        let arr = locationProductMap.get(pb.stockLocationId);
+        if (!arr) { arr = []; locationProductMap.set(pb.stockLocationId, arr); }
+        arr.push({ productId: pb.productId, productName: pb.product.name, balance: pb.balance });
+      }
+
+      const locationsWithProducts = locationsWithMetrics.map((loc) => ({
+        ...loc,
+        productBalances: locationProductMap.get(loc.id) ?? [],
+      }));
+
       return {
         totalStock: totalHqBalance + totalWarehouseBalance + totalSellerBalance,
         hqStock: totalHqBalance,
@@ -94,7 +136,8 @@ export function createAdminInventoryService(database: PrismaClient) {
         totalReceived,
         totalTransferred,
         totalSold,
-        locations: locationsWithMetrics,
+        products: Array.from(productMap.values()),
+        locations: locationsWithProducts,
       };
     },
 
@@ -122,23 +165,46 @@ export function createAdminInventoryService(database: PrismaClient) {
     },
 
     addReceipt: async (actorId: string, input: CreateReceiptInput) => {
+      const items = "items" in input
+        ? input.items
+        : await resolveDefaultProductItems(input.quantity);
+
       return database.$transaction(async (tx) => {
         const hq = await getOrCreateHQ(tx);
+        const movements = [];
+        let totalQty = 0;
+
+        for (const item of items) {
+          const product = await tx.product.findUnique({ where: { id: item.productId } });
+          if (!product || !product.active) {
+            throw new HttpError(400, `Product not found or inactive: ${item.productId}`);
+          }
+
+          await tx.productBalance.upsert({
+            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: hq.id } },
+            update: { balance: { increment: item.quantity } },
+            create: { productId: item.productId, stockLocationId: hq.id, balance: item.quantity },
+          });
+
+          const movement = await tx.stockMovement.create({
+            data: {
+              type: "RECEIPT",
+              quantity: item.quantity,
+              destinationId: hq.id,
+              actorId,
+              productId: item.productId,
+            },
+          });
+          movements.push(movement);
+          totalQty += item.quantity;
+        }
+
         const updatedHQ = await tx.stockLocation.update({
           where: { id: hq.id },
-          data: { balance: { increment: input.quantity } },
+          data: { balance: { increment: totalQty } },
         });
 
-        const movement = await tx.stockMovement.create({
-          data: {
-            type: "RECEIPT",
-            quantity: input.quantity,
-            destinationId: hq.id,
-            actorId,
-          },
-        });
-
-        return { hq: updatedHQ, movement };
+        return { hq: updatedHQ, movements };
       });
     },
 
@@ -146,6 +212,10 @@ export function createAdminInventoryService(database: PrismaClient) {
       if (input.sourceId === input.destinationId) {
         throw new HttpError(400, "Source and destination cannot be the same location");
       }
+
+      const items = "items" in input
+        ? input.items
+        : await resolveDefaultProductItems(input.quantity);
 
       return database.$transaction(async (tx) => {
         const source = await tx.stockLocation.findUnique({ where: { id: input.sourceId } });
@@ -155,32 +225,59 @@ export function createAdminInventoryService(database: PrismaClient) {
           throw new HttpError(404, "Source or destination stock location not found");
         }
 
-        if (source.balance < input.quantity) {
-          throw new HttpError(409, `Insufficient stock at ${source.name}. Available: ${source.balance}, Requested: ${input.quantity}`);
+        const movements = [];
+        let totalQty = 0;
+
+        for (const item of items) {
+          const product = await tx.product.findUnique({ where: { id: item.productId } });
+          if (!product || !product.active) {
+            throw new HttpError(400, `Product not found or inactive: ${item.productId}`);
+          }
+
+          const srcBalance = await tx.productBalance.findUnique({
+            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: source.id } },
+          });
+
+          if (!srcBalance || srcBalance.balance < item.quantity) {
+            throw new HttpError(409, `Insufficient stock of ${product.name} at ${source.name}. Available: ${srcBalance?.balance ?? 0}, Requested: ${item.quantity}`);
+          }
+
+          await tx.productBalance.update({
+            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: source.id } },
+            data: { balance: { decrement: item.quantity } },
+          });
+
+          await tx.productBalance.upsert({
+            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: destination.id } },
+            update: { balance: { increment: item.quantity } },
+            create: { productId: item.productId, stockLocationId: destination.id, balance: item.quantity },
+          });
+
+          const movement = await tx.stockMovement.create({
+            data: {
+              type: "TRANSFER",
+              quantity: item.quantity,
+              sourceId: source.id,
+              destinationId: destination.id,
+              actorId,
+              productId: item.productId,
+            },
+          });
+          movements.push(movement);
+          totalQty += item.quantity;
         }
 
-        // Deduct source, add destination
         const updatedSource = await tx.stockLocation.update({
           where: { id: source.id },
-          data: { balance: { decrement: input.quantity } },
+          data: { balance: { decrement: totalQty } },
         });
 
         const updatedDestination = await tx.stockLocation.update({
           where: { id: destination.id },
-          data: { balance: { increment: input.quantity } },
+          data: { balance: { increment: totalQty } },
         });
 
-        const movement = await tx.stockMovement.create({
-          data: {
-            type: "TRANSFER",
-            quantity: input.quantity,
-            sourceId: source.id,
-            destinationId: destination.id,
-            actorId,
-          },
-        });
-
-        return { source: updatedSource, destination: updatedDestination, movement };
+        return { source: updatedSource, destination: updatedDestination, movements };
       }, { timeout: 30000, maxWait: 10000 });
     },
 
@@ -249,6 +346,7 @@ export function createAdminInventoryService(database: PrismaClient) {
           source: { select: { id: true, name: true, type: true } },
           destination: { select: { id: true, name: true, type: true } },
           actor: { select: { id: true, name: true, role: true } },
+          product: { select: { id: true, name: true, sku: true } },
           sale: {
             select: {
               id: true,

@@ -1,12 +1,26 @@
 import { z } from "zod";
 
-export const createSaleSchema = z.strictObject({
-  customerId: z.string().uuid(),
+const saleLineItemSchema = z.strictObject({
+  productId: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
   unitPricePaise: z.coerce.number().int().positive(),
-  paymentMode: z.enum(["CASH", "BANK", "PENDING"]),
-  requestKey: z.string().trim().max(100).optional(),
 });
+
+export const createSaleSchema = z.union([
+  z.strictObject({
+    customerId: z.string().uuid(),
+    quantity: z.coerce.number().int().positive(),
+    unitPricePaise: z.coerce.number().int().positive(),
+    paymentMode: z.enum(["CASH", "BANK", "PENDING"]),
+    requestKey: z.string().trim().max(100).optional(),
+  }),
+  z.strictObject({
+    customerId: z.string().uuid(),
+    items: z.array(saleLineItemSchema).min(1).max(50),
+    paymentMode: z.enum(["CASH", "BANK", "PENDING"]),
+    requestKey: z.string().trim().max(100).optional(),
+  }),
+]);
 
 export const listSalesSchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(100_000).default(1),

@@ -4,15 +4,33 @@ export const createWarehouseSchema = z.strictObject({
   name: z.string().trim().min(1).max(100),
 });
 
-export const createReceiptSchema = z.strictObject({
+const receiptItemSchema = z.strictObject({
+  productId: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
 });
 
-export const createTransferSchema = z.strictObject({
-  sourceId: z.string().uuid(),
-  destinationId: z.string().uuid(),
+export const createReceiptSchema = z.union([
+  z.strictObject({ quantity: z.coerce.number().int().positive() }),
+  z.strictObject({ items: z.array(receiptItemSchema).min(1).max(50) }),
+]);
+
+const transferItemSchema = z.strictObject({
+  productId: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
 });
+
+export const createTransferSchema = z.union([
+  z.strictObject({
+    sourceId: z.string().uuid(),
+    destinationId: z.string().uuid(),
+    quantity: z.coerce.number().int().positive(),
+  }),
+  z.strictObject({
+    sourceId: z.string().uuid(),
+    destinationId: z.string().uuid(),
+    items: z.array(transferItemSchema).min(1).max(50),
+  }),
+]);
 
 export const listTransactionsSchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(100_000).default(1),

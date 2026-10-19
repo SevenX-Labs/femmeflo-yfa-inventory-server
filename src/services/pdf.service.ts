@@ -36,6 +36,13 @@ export type InvoiceSnapshot = {
   quantity: number;
   unitPricePaise: number;
   totalPaise: number;
+  lineItems?: Array<{
+    productName: string;
+    productSku?: string | null;
+    quantity: number;
+    unitPricePaise: number;
+    totalPaise: number;
+  }>;
   paymentMode: string;
 };
 
@@ -286,44 +293,66 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       doc.text("UNIT PRICE (INR)", colRate, tableTop + 7, { width: 80, align: "right" });
       doc.text("TOTAL (INR)", colTotal, tableTop + 7, { width: colTotalWidth, align: "right" });
 
-      // Item Row
-      const rowY = tableTop + tableHeaderHeight + 6;
-      const rowHeight = 36;
+      // Item Rows
+      const rows = snapshot.lineItems && snapshot.lineItems.length > 0
+        ? snapshot.lineItems.map((li, i) => ({
+            num: i + 1,
+            name: li.productName,
+            desc: li.productSku || "",
+            qty: li.quantity,
+            unitPrice: ((li.unitPricePaise || 0) / 100).toFixed(2),
+            total: ((li.totalPaise || 0) / 100).toFixed(2),
+          }))
+        : [{
+            num: 1,
+            name: "FemmeFlo Sanitary Napkins (Pack)",
+            desc: "Standard Hygiene Pack",
+            qty: snapshot.quantity || 0,
+            unitPrice: ((snapshot.unitPricePaise || 0) / 100).toFixed(2),
+            total: ((snapshot.totalPaise || 0) / 100).toFixed(2),
+          }];
 
-      doc.rect(left, rowY, pageWidth, rowHeight)
-        .fillColor("#FFFFFF")
-        .fill();
-      doc.moveTo(left, rowY + rowHeight)
-        .lineTo(right, rowY + rowHeight)
-        .lineWidth(0.5)
-        .strokeColor(BORDER_COLOR)
-        .stroke();
-
-      const unitPrice = ((snapshot.unitPricePaise || 0) / 100).toFixed(2);
       const totalAmount = ((snapshot.totalPaise || 0) / 100).toFixed(2);
+      const rowHeight = 36;
+      let currentRowY = tableTop + tableHeaderHeight + 6;
 
-      doc.fontSize(9).font("Helvetica").fillColor(TEXT_DARK);
-      doc.text("1", colNo, rowY + 8, { width: 25 });
+      for (const row of rows) {
+        doc.rect(left, currentRowY, pageWidth, rowHeight)
+          .fillColor("#FFFFFF")
+          .fill();
+        doc.moveTo(left, currentRowY + rowHeight)
+          .lineTo(right, currentRowY + rowHeight)
+          .lineWidth(0.5)
+          .strokeColor(BORDER_COLOR)
+          .stroke();
 
-      doc.font("Helvetica-Bold")
-        .text("FemmeFlo Sanitary Napkins (Pack)", colDesc, rowY + 8);
-      doc.fontSize(8)
-        .font("Helvetica")
-        .fillColor(TEXT_MUTED)
-        .text("Standard Hygiene Pack", colDesc, rowY + 21);
+        doc.fontSize(9).font("Helvetica").fillColor(TEXT_DARK);
+        doc.text(String(row.num), colNo, currentRowY + 8, { width: 25 });
 
-      doc.fontSize(9)
-        .font("Helvetica")
-        .fillColor(TEXT_DARK)
-        .text(String(snapshot.quantity || 0), colQty, rowY + 12, { width: 50, align: "center" });
+        doc.font("Helvetica-Bold")
+          .text(row.name, colDesc, currentRowY + 8);
+        if (row.desc) {
+          doc.fontSize(8)
+            .font("Helvetica")
+            .fillColor(TEXT_MUTED)
+            .text(row.desc, colDesc, currentRowY + 21);
+        }
 
-      doc.text(`Rs. ${unitPrice}`, colRate, rowY + 12, { width: 80, align: "right" });
+        doc.fontSize(9)
+          .font("Helvetica")
+          .fillColor(TEXT_DARK)
+          .text(String(row.qty), colQty, currentRowY + 12, { width: 50, align: "center" });
 
-      doc.font("Helvetica-Bold")
-        .text(`Rs. ${totalAmount}`, colTotal, rowY + 12, { width: colTotalWidth, align: "right" });
+        doc.text(`Rs. ${row.unitPrice}`, colRate, currentRowY + 12, { width: 80, align: "right" });
+
+        doc.font("Helvetica-Bold")
+          .text(`Rs. ${row.total}`, colTotal, currentRowY + 12, { width: colTotalWidth, align: "right" });
+
+        currentRowY += rowHeight;
+      }
 
       // 5. Payment Details & Totals Section
-      const summaryTop = rowY + rowHeight + 20;
+      const summaryTop = currentRowY + 20;
 
       // Left Box: Payment Details Badge & Terms
       const paymentBoxWidth = 240;

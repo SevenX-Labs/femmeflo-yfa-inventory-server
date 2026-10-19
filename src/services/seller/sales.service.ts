@@ -11,11 +11,38 @@ export function getPeriodDateRange(period?: "all" | "this_month" | "last_month")
 }
 
 export function createSellerSalesService(database: PrismaClient) {
+  async function resolveDefaultProductId(): Promise<string> {
+    const settings = await database.businessSettings.findUnique({ where: { id: 1 } });
+    if (!settings?.defaultProductId) {
+      throw new HttpError(400, "No default product configured. Please run the multi-product migration.");
+    }
+    return settings.defaultProductId;
+  }
+
+  type NormalizedItem = { productId: string; quantity: number; unitPricePaise: number };
+
+  type NormalizedResult = { customerId: string; items: NormalizedItem[]; paymentMode: "CASH" | "BANK" | "PENDING"; requestKey: string | undefined };
+
+  async function normalizeInput(input: CreateSaleInput): Promise<NormalizedResult> {
+    if ("items" in input) {
+      return { customerId: input.customerId, items: input.items, paymentMode: input.paymentMode, requestKey: input.requestKey };
+    }
+    const defaultProductId = await resolveDefaultProductId();
+    return {
+      customerId: input.customerId,
+      items: [{ productId: defaultProductId, quantity: input.quantity, unitPricePaise: input.unitPricePaise }],
+      paymentMode: input.paymentMode,
+      requestKey: input.requestKey,
+    };
+  }
+
   return {
     create: async (sellerId: string, input: CreateSaleInput) => {
+      const normalized = await normalizeInput(input);
+
       // 1. Verify Customer belongs to Seller
       const customer = await database.customer.findUnique({
-        where: { id: input.customerId },
+        where: { id: normalized.customerId },
         include: { category: true },
       });
 
@@ -32,8 +59,8 @@ export function createSellerSalesService(database: PrismaClient) {
       }
 
       // Check for duplicate requestKey if provided
-      if (input.requestKey) {
-        const existingSale = await database.sale.findUnique({ where: { requestKey: input.requestKey } });
+      if (normalized.requestKey) {
+        const existingSale = await database.sale.findUnique({ where: { requestKey: normalized.requestKey } });
         if (existingSale) {
           if (existingSale.sellerId !== sellerId) {
             throw new HttpError(403, "Request key belongs to another seller");
@@ -42,35 +69,50 @@ export function createSellerSalesService(database: PrismaClient) {
         }
       }
 
-      const totalPaise = input.quantity * input.unitPricePaise;
+      // Calculate totals
+      const lineItems = normalized.items.map((item) => ({
+        ...item,
+        totalPaise: item.quantity * item.unitPricePaise,
+      }));
+      const totalQuantity = lineItems.reduce((sum, li) => sum + li.quantity, 0);
+      const grandTotalPaise = lineItems.reduce((sum, li) => sum + li.totalPaise, 0);
 
-      // 2. Fetch BusinessSettings for price threshold & incentive rate
+      // 2. Fetch BusinessSettings + validate per-product minimum prices
       let settings = await database.businessSettings.findUnique({ where: { id: 1 } });
       if (!settings) {
         settings = await database.businessSettings.create({
-          data: {
-            id: 1,
-            minimumPricePaise: 2500,
-            incentiveRatePaise: null,
-            companyName: "MASAKO ENTERPRISES PRIVATE LIMITED",
-          },
+          data: { id: 1, minimumPricePaise: 2500, incentiveRatePaise: null, companyName: "MASAKO ENTERPRISES PRIVATE LIMITED" },
         });
       }
 
-      const isLowPrice = input.unitPricePaise < settings.minimumPricePaise;
+      // Resolve products and check prices
+      let isLowPrice = false;
+      const productLookup = new Map<string, { id: string; name: string; sku: string | null; minimumPricePaise: number }>();
+      for (const item of lineItems) {
+        if (!productLookup.has(item.productId)) {
+          const product = await database.product.findUnique({ where: { id: item.productId } });
+          if (!product || !product.active) {
+            throw new HttpError(400, `Product not found or inactive: ${item.productId}`);
+          }
+          productLookup.set(item.productId, { id: product.id, name: product.name, sku: product.sku, minimumPricePaise: product.minimumPricePaise });
+        }
+        const product = productLookup.get(item.productId)!;
+        if (item.unitPricePaise < product.minimumPricePaise) {
+          isLowPrice = true;
+        }
+      }
 
       if (isLowPrice) {
-        // Require Admin Approval. Do NOT deduct stock or calculate incentive yet.
         const saleData: Record<string, unknown> = {
           sellerId,
-          customerId: input.customerId,
-          quantity: input.quantity,
-          unitPricePaise: input.unitPricePaise,
-          totalPaise,
-          paymentMode: input.paymentMode,
+          customerId: normalized.customerId,
+          quantity: totalQuantity,
+          unitPricePaise: 0,
+          totalPaise: grandTotalPaise,
+          paymentMode: normalized.paymentMode,
           status: "PENDING_APPROVAL",
         };
-        if (input.requestKey !== undefined) saleData["requestKey"] = input.requestKey;
+        if (normalized.requestKey !== undefined) saleData["requestKey"] = normalized.requestKey;
 
         const sale = await database.sale.create({
           data: saleData as Prisma.SaleCreateInput,
@@ -80,62 +122,97 @@ export function createSellerSalesService(database: PrismaClient) {
           },
         });
 
+        // Create SaleLineItems
+        await database.saleLineItem.createMany({
+          data: lineItems.map((li) => ({
+            saleId: sale.id,
+            productId: li.productId,
+            quantity: li.quantity,
+            unitPricePaise: li.unitPricePaise,
+            totalPaise: li.totalPaise,
+          })),
+        });
+
         // Notify Admin
         const admins = await database.user.findMany({ where: { role: "SUPER_ADMIN", active: true } });
         if (admins.length > 0) {
+          const itemSummary = lineItems.map((li) => {
+            const p = productLookup.get(li.productId)!;
+            return `${p.name}: ${li.quantity} × ₹${(li.unitPricePaise / 100).toFixed(2)}`;
+          }).join(", ");
           await database.notification.createMany({
             data: admins.map((admin) => ({
               recipientId: admin.id,
               saleId: sale.id,
               kind: "LOW_PRICE_APPROVAL_REQUEST",
-              message: `Low-price sale approval request from ${seller.name}: ${sale.quantity} packets @ ₹${(sale.unitPricePaise / 100).toFixed(2)}/packet`,
+              message: `Low-price sale approval request from ${seller.name}: ${itemSummary}`,
             })),
           });
         }
 
-        return sale;
+        const created = await database.sale.findUnique({
+          where: { id: sale.id },
+          include: {
+            customer: { select: { id: true, shopName: true, contactName: true } },
+            seller: { select: { id: true, name: true, phone: true } },
+            lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
+          },
+        });
+        return created!;
       }
 
-      // Unit price >= ₹25: Confirm immediately in atomic transaction
+      // Price OK: Confirm immediately in atomic transaction
       const result = await database.$transaction(async (tx) => {
-
-        // Find seller stock location
         const sellerLoc = await tx.stockLocation.findUnique({ where: { sellerId } });
         if (!sellerLoc) {
           throw new HttpError(404, "Stock location for seller not found");
         }
-        if (sellerLoc.balance < input.quantity) {
-          throw new HttpError(409, `Insufficient stock balance. Available: ${sellerLoc.balance}, Requested: ${input.quantity}`);
+
+        // Check per-product stock
+        for (const item of lineItems) {
+          const pb = await tx.productBalance.findUnique({
+            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: sellerLoc.id } },
+          });
+          if (!pb || pb.balance < item.quantity) {
+            const product = productLookup.get(item.productId)!;
+            throw new HttpError(409, `Insufficient stock of ${product.name}. Available: ${pb?.balance ?? 0}, Requested: ${item.quantity}`);
+          }
         }
 
-        // Calculate incentive snapshot (user specific rate takes precedence over business default)
+        // Calculate incentive
         const sellerUser = await tx.user.findUnique({
           where: { id: sellerId },
           select: { incentiveRatePaise: true },
         });
         const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise;
-        const incentiveAmountPaise = incentiveRatePaise !== null && incentiveRatePaise !== undefined ? input.quantity * incentiveRatePaise : null;
+        const incentiveAmountPaise = incentiveRatePaise !== null && incentiveRatePaise !== undefined ? totalQuantity * incentiveRatePaise : null;
 
-        // Deduct seller stock
+        // Deduct per-product stock + location total
+        for (const item of lineItems) {
+          await tx.productBalance.update({
+            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: sellerLoc.id } },
+            data: { balance: { decrement: item.quantity } },
+          });
+        }
         await tx.stockLocation.update({
           where: { id: sellerLoc.id },
-          data: { balance: { decrement: input.quantity } },
+          data: { balance: { decrement: totalQuantity } },
         });
 
-        // Create Sale record
+        // Create Sale
         const saleData: Record<string, unknown> = {
           sellerId,
-          customerId: input.customerId,
-          quantity: input.quantity,
-          unitPricePaise: input.unitPricePaise,
-          totalPaise,
-          paymentMode: input.paymentMode,
+          customerId: normalized.customerId,
+          quantity: totalQuantity,
+          unitPricePaise: lineItems.length === 1 ? lineItems[0]!.unitPricePaise : 0,
+          totalPaise: grandTotalPaise,
+          paymentMode: normalized.paymentMode,
           status: "CONFIRMED",
           confirmedAt: new Date(),
           incentiveRatePaise: incentiveRatePaise ?? null,
           incentiveAmountPaise: incentiveAmountPaise ?? null,
         };
-        if (input.requestKey !== undefined) saleData["requestKey"] = input.requestKey;
+        if (normalized.requestKey !== undefined) saleData["requestKey"] = normalized.requestKey;
 
         const sale = await tx.sale.create({
           data: saleData as Prisma.SaleCreateInput,
@@ -145,19 +222,38 @@ export function createSellerSalesService(database: PrismaClient) {
           },
         });
 
-        // Record Sale StockMovement
-        await tx.stockMovement.create({
-          data: {
-            type: "SALE",
-            quantity: input.quantity,
-            sourceId: sellerLoc.id,
-            actorId: sellerId,
+        // Create SaleLineItems
+        await tx.saleLineItem.createMany({
+          data: lineItems.map((li) => ({
             saleId: sale.id,
-          },
+            productId: li.productId,
+            quantity: li.quantity,
+            unitPricePaise: li.unitPricePaise,
+            totalPaise: li.totalPaise,
+          })),
         });
 
-        // Generate Invoice
+        // Record per-product StockMovements
+        for (const item of lineItems) {
+          await tx.stockMovement.create({
+            data: {
+              type: "SALE",
+              quantity: item.quantity,
+              sourceId: sellerLoc.id,
+              actorId: sellerId,
+              saleId: sale.id,
+              productId: item.productId,
+            },
+          });
+        }
+
+        // Generate Invoice with multi-line snapshot
         const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const snapshotLineItems = lineItems.map((li) => {
+          const p = productLookup.get(li.productId)!;
+          return { productName: p.name, productSku: p.sku, quantity: li.quantity, unitPricePaise: li.unitPricePaise, totalPaise: li.totalPaise };
+        });
+
         const invoiceSnapshot = {
           invoiceNumber,
           saleId: sale.id,
@@ -179,13 +275,11 @@ export function createSellerSalesService(database: PrismaClient) {
             district: customer.district,
             village: customer.village,
           },
-          seller: {
-            name: seller.name,
-            phone: seller.phone,
-          },
-          quantity: sale.quantity,
-          unitPricePaise: sale.unitPricePaise,
-          totalPaise: sale.totalPaise,
+          seller: { name: seller.name, phone: seller.phone },
+          quantity: totalQuantity,
+          unitPricePaise: lineItems.length === 1 ? lineItems[0]!.unitPricePaise : 0,
+          totalPaise: grandTotalPaise,
+          lineItems: snapshotLineItems,
           paymentMode: sale.paymentMode,
         };
 
@@ -198,13 +292,13 @@ export function createSellerSalesService(database: PrismaClient) {
         });
 
         // Record PaymentRecord if Cash/Bank
-        if (input.paymentMode === "CASH" || input.paymentMode === "BANK") {
+        if (normalized.paymentMode === "CASH" || normalized.paymentMode === "BANK") {
           await tx.paymentRecord.create({
             data: {
               saleId: sale.id,
               collectorId: sellerId,
-              mode: input.paymentMode,
-              amountPaise: totalPaise,
+              mode: normalized.paymentMode,
+              amountPaise: grandTotalPaise,
             },
           });
         }
@@ -246,6 +340,7 @@ export function createSellerSalesService(database: PrismaClient) {
         include: {
           customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
           invoice: { select: { id: true, number: true } },
+          lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
         },
       });
 
@@ -267,6 +362,7 @@ export function createSellerSalesService(database: PrismaClient) {
           customer: { select: { id: true, shopName: true, contactName: true, phone: true, state: true, district: true, village: true } },
           invoice: true,
           payments: true,
+          lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
         },
       });
 

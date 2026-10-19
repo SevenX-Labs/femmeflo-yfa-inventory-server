@@ -29,6 +29,7 @@ export function createAdminApprovalService(database: PrismaClient) {
         include: {
           customer: { select: { id: true, shopName: true, contactName: true, phone: true, state: true, district: true, village: true } },
           seller: { select: { id: true, name: true, phone: true } },
+          lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
         },
       });
 
@@ -51,6 +52,7 @@ export function createAdminApprovalService(database: PrismaClient) {
           include: {
             customer: { select: { id: true, shopName: true, contactName: true, phone: true, state: true, district: true, village: true } },
             seller: { select: { id: true, name: true, phone: true, email: true } },
+            lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
           },
         });
 
@@ -61,25 +63,15 @@ export function createAdminApprovalService(database: PrismaClient) {
           throw new HttpError(409, `Sale has already been decided with status: ${sale.status}`);
         }
 
-        // Check seller stock balance
         const sellerLoc = await tx.stockLocation.findUnique({ where: { sellerId: sale.sellerId } });
         if (!sellerLoc) {
           throw new HttpError(404, "Stock location for seller not found");
         }
-        if (sellerLoc.balance < sale.quantity) {
-          throw new HttpError(409, `Insufficient stock at seller location. Available: ${sellerLoc.balance}, Requested: ${sale.quantity}`);
-        }
 
-        // Read BusinessSettings for incentive rate
         let settings = await tx.businessSettings.findUnique({ where: { id: 1 } });
         if (!settings) {
           settings = await tx.businessSettings.create({
-            data: {
-              id: 1,
-              minimumPricePaise: 2500,
-              incentiveRatePaise: null,
-              companyName: "MASAKO ENTERPRISES PRIVATE LIMITED",
-            },
+            data: { id: 1, minimumPricePaise: 2500, incentiveRatePaise: null, companyName: "MASAKO ENTERPRISES PRIVATE LIMITED" },
           });
         }
 
@@ -88,27 +80,72 @@ export function createAdminApprovalService(database: PrismaClient) {
           select: { incentiveRatePaise: true },
         });
         const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise;
-        const incentiveAmountPaise = incentiveRatePaise !== null && incentiveRatePaise !== undefined ? sale.quantity * incentiveRatePaise : null;
+        const totalQuantity = sale.lineItems.length > 0
+          ? sale.lineItems.reduce((sum, li) => sum + li.quantity, 0)
+          : sale.quantity;
+        const incentiveAmountPaise = incentiveRatePaise !== null && incentiveRatePaise !== undefined ? totalQuantity * incentiveRatePaise : null;
 
-        // Deduct seller stock
-        await tx.stockLocation.update({
-          where: { id: sellerLoc.id },
-          data: { balance: { decrement: sale.quantity } },
-        });
+        if (sale.lineItems.length > 0) {
+          // Multi-product: deduct per-product stock
+          for (const li of sale.lineItems) {
+            const pb = await tx.productBalance.findUnique({
+              where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
+            });
+            if (!pb || pb.balance < li.quantity) {
+              throw new HttpError(409, `Insufficient stock of ${li.product.name}. Available: ${pb?.balance ?? 0}, Requested: ${li.quantity}`);
+            }
+            await tx.productBalance.update({
+              where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
+              data: { balance: { decrement: li.quantity } },
+            });
 
-        // Record Sale StockMovement
-        await tx.stockMovement.create({
-          data: {
-            type: "SALE",
-            quantity: sale.quantity,
-            sourceId: sellerLoc.id,
-            actorId: sale.sellerId,
-            saleId: sale.id,
-          },
-        });
+            await tx.stockMovement.create({
+              data: {
+                type: "SALE",
+                quantity: li.quantity,
+                sourceId: sellerLoc.id,
+                actorId: sale.sellerId,
+                saleId: sale.id,
+                productId: li.productId,
+              },
+            });
+          }
+          await tx.stockLocation.update({
+            where: { id: sellerLoc.id },
+            data: { balance: { decrement: totalQuantity } },
+          });
+        } else {
+          // Legacy single-product sale
+          if (sellerLoc.balance < sale.quantity) {
+            throw new HttpError(409, `Insufficient stock at seller location. Available: ${sellerLoc.balance}, Requested: ${sale.quantity}`);
+          }
+          await tx.stockLocation.update({
+            where: { id: sellerLoc.id },
+            data: { balance: { decrement: sale.quantity } },
+          });
+          await tx.stockMovement.create({
+            data: {
+              type: "SALE",
+              quantity: sale.quantity,
+              sourceId: sellerLoc.id,
+              actorId: sale.sellerId,
+              saleId: sale.id,
+            },
+          });
+        }
 
         // Generate Invoice
         const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const snapshotLineItems = sale.lineItems.length > 0
+          ? sale.lineItems.map((li) => ({
+              productName: li.product.name,
+              productSku: li.product.sku,
+              quantity: li.quantity,
+              unitPricePaise: li.unitPricePaise,
+              totalPaise: li.totalPaise,
+            }))
+          : undefined;
+
         const invoiceSnapshot = {
           invoiceNumber,
           saleId: sale.id,
@@ -137,6 +174,7 @@ export function createAdminApprovalService(database: PrismaClient) {
           quantity: sale.quantity,
           unitPricePaise: sale.unitPricePaise,
           totalPaise: sale.totalPaise,
+          lineItems: snapshotLineItems,
           paymentMode: sale.paymentMode,
         };
 
@@ -148,7 +186,6 @@ export function createAdminApprovalService(database: PrismaClient) {
           },
         });
 
-        // Record PaymentRecord if Cash/Bank
         if (sale.paymentMode === "CASH" || sale.paymentMode === "BANK") {
           await tx.paymentRecord.create({
             data: {
@@ -160,7 +197,6 @@ export function createAdminApprovalService(database: PrismaClient) {
           });
         }
 
-        // Update Sale record to CONFIRMED
         const updatedSale = await tx.sale.update({
           where: { id: saleId },
           data: {
@@ -174,23 +210,22 @@ export function createAdminApprovalService(database: PrismaClient) {
           include: {
             customer: { select: { id: true, shopName: true, contactName: true } },
             seller: { select: { id: true, name: true } },
+            lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
           },
         });
 
-        // Create Notification for Seller
         await tx.notification.create({
           data: {
             recipientId: sale.sellerId,
             saleId: sale.id,
             kind: "LOW_PRICE_SALE_APPROVED",
-            message: `Your low-price sale of ${sale.quantity} packets to ${sale.customer.shopName} was approved by Admin.`,
+            message: `Your sale to ${sale.customer.shopName} (${totalQuantity} items, ₹${(sale.totalPaise / 100).toFixed(2)}) was approved by Admin.`,
           },
         });
 
         return { updatedSale, invoice };
       }, { timeout: 30000, maxWait: 10000 });
 
-      // Process Invoice PDF after transaction completes
       const pdfPath = await processInvoicePdf(database, result.invoice.id).catch(() => null);
       const invoice = pdfPath ? { ...result.invoice, pdfPath } : result.invoice;
       return { ...result.updatedSale, invoice };
@@ -199,7 +234,10 @@ export function createAdminApprovalService(database: PrismaClient) {
     reject: async (adminId: string, saleId: string, input: RejectSaleInput) => {
       const sale = await database.sale.findUnique({
         where: { id: saleId },
-        include: { customer: { select: { shopName: true } } },
+        include: {
+          customer: { select: { shopName: true } },
+          lineItems: { include: { product: { select: { name: true } } } },
+        },
       });
 
       if (!sale) {
@@ -217,15 +255,21 @@ export function createAdminApprovalService(database: PrismaClient) {
           decidedById: adminId,
           rejectionReason: input.reason ?? "Price below minimum threshold rejected by Admin",
         },
+        include: {
+          lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
+        },
       });
 
-      // Create Notification for Seller
+      const totalQty = sale.lineItems.length > 0
+        ? sale.lineItems.reduce((sum, li) => sum + li.quantity, 0)
+        : sale.quantity;
+
       await database.notification.create({
         data: {
           recipientId: sale.sellerId,
           saleId: sale.id,
           kind: "LOW_PRICE_SALE_REJECTED",
-          message: `Your low-price sale of ${sale.quantity} packets to ${sale.customer.shopName} was rejected by Admin. ${input.reason ? `Reason: ${input.reason}` : ""}`,
+          message: `Your sale of ${totalQty} items to ${sale.customer.shopName} was rejected by Admin. ${input.reason ? `Reason: ${input.reason}` : ""}`,
         },
       });
 
