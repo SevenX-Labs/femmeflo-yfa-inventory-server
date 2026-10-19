@@ -52,7 +52,7 @@ const authEnvironmentSchema = z.object({
     .string()
     .trim()
     .regex(/^(\d+)([smhd])$/, "Use duration format such as 15m, 1h, 5h, 1d")
-    .default("1h"),
+    .default("30d"),
 });
 
 export function loadAuthEnvironment(values: NodeJS.ProcessEnv = process.env) {

@@ -15,6 +15,8 @@ const defaultExpiresInSeconds: Record<string, number> = {
   "5h": 18_000,
   "8h": 28_800,
   "1d": 86_400,
+  "7d": 604_800,
+  "30d": 2_592_000,
 };
 
 export function parseExpiresInSeconds(val: string): number {
