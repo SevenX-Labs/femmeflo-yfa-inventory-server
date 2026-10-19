@@ -12,6 +12,14 @@ export type UserContext = {
   village?: string | null;
 };
 
+function serializeCustomer<T extends { latitude?: unknown; longitude?: unknown }>(customer: T): T & { latitude: number | null; longitude: number | null } {
+  return {
+    ...customer,
+    latitude: customer.latitude != null ? Number(customer.latitude) : null,
+    longitude: customer.longitude != null ? Number(customer.longitude) : null,
+  };
+}
+
 export function createCustomerService(database: PrismaClient) {
   return {
     create: async (user: UserContext, input: CreateCustomerInput) => {
@@ -89,13 +97,13 @@ export function createCustomerService(database: PrismaClient) {
         input.pincode,
       ].filter(Boolean).join(", ");
 
-      return {
+      return serializeCustomer({
         ...customer,
         shopNumber: input.shopNumber,
         streetName: input.streetName,
         pincode: input.pincode,
         address: fullAddress || `${customer.village}, ${customer.district}, ${customer.state}`,
-      };
+      });
     },
 
     lookupPincode: async (pincode: string) => {
@@ -195,7 +203,7 @@ export function createCustomerService(database: PrismaClient) {
       });
 
       return {
-        items,
+        items: items.map(serializeCustomer),
         pagination: {
           page: query.page,
           pageSize: query.pageSize,
@@ -237,7 +245,7 @@ export function createCustomerService(database: PrismaClient) {
         }
       }
 
-      return customer;
+      return serializeCustomer(customer);
     },
 
     update: async (user: UserContext, id: string, input: UpdateCustomerInput) => {
@@ -305,7 +313,7 @@ export function createCustomerService(database: PrismaClient) {
       if (input.latitude !== undefined) updateData["latitude"] = new Prisma.Decimal(input.latitude);
       if (input.longitude !== undefined) updateData["longitude"] = new Prisma.Decimal(input.longitude);
 
-      return database.customer.update({
+      const updated = await database.customer.update({
         where: { id },
         data: updateData as Prisma.CustomerUpdateInput,
         include: {
@@ -313,6 +321,7 @@ export function createCustomerService(database: PrismaClient) {
           seller: { select: { id: true, name: true, phone: true } },
         },
       });
+      return serializeCustomer(updated);
     },
 
     uploadPhoto: async (user: UserContext, id: string, file: Express.Multer.File) => {
@@ -343,7 +352,7 @@ export function createCustomerService(database: PrismaClient) {
         },
       });
 
-      return { customer, photoUrl: uploadResult.publicUrl };
+      return { customer: serializeCustomer(customer), photoUrl: uploadResult.publicUrl };
     },
   };
 }
