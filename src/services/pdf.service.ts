@@ -97,21 +97,10 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       let brandY = headerY;
       let drawnLogo = false;
 
-      // Draw FemmeFlo Logo
-      if (femmefloLogoPath) {
-        try {
-          doc.image(femmefloLogoPath, left, headerY, { height: 36 });
-          drawnLogo = true;
-        } catch (e) {
-          // ignore error
-        }
-      }
-
-      // Draw Masako Brand Logo beside or below
+      // Draw Masako Brand Logo only (don't show FemmeFlo logo)
       if (masakoLogoPath) {
         try {
-          const masakoX = femmefloLogoPath ? left + 130 : left;
-          doc.image(masakoLogoPath, masakoX, headerY, { height: 34 });
+          doc.image(masakoLogoPath, left, headerY, { height: 34 });
           drawnLogo = true;
         } catch (e) {
           // ignore error
@@ -119,32 +108,14 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       }
 
       if (drawnLogo) {
-        brandY += 42;
+        brandY += 40;
       } else {
-        doc.fontSize(20).font("Helvetica-Bold").fillColor(PRIMARY).text(companyName.toUpperCase(), left, headerY);
-        brandY += 24;
+        doc.fontSize(16).font("Helvetica-Bold").fillColor(PRIMARY).text(companyName.toUpperCase(), left, headerY);
+        brandY += 22;
       }
 
-      // Company Name & GST details below logo
-      doc.fontSize(9).font("Helvetica-Bold").fillColor(TEXT_DARK).text(companyName, left, brandY);
-      brandY += 12;
-
-      if (company.gst) {
-        doc.fontSize(8).font("Helvetica-Bold").fillColor(PRIMARY).text(`GSTIN: ${company.gst}`, left, brandY);
-        brandY += 11;
-      }
-      if (company.pan) {
-        doc.fontSize(7.5).font("Helvetica").fillColor(TEXT_MUTED).text(`PAN: ${company.pan}`, left, brandY);
-        brandY += 10;
-      }
-      if (company.address) {
-        doc.fontSize(7.5).font("Helvetica").fillColor(TEXT_MUTED).text(company.address, left, brandY, { width: 230, lineGap: 1 });
-        brandY += 16;
-      }
-      const compContact = [company.phone, company.email].filter(Boolean).join("  •  ");
-      if (compContact) {
-        doc.fontSize(7.5).font("Helvetica").fillColor(TEXT_MUTED).text(compContact, left, brandY, { width: 230 });
-      }
+      // Company Name below logo
+      doc.fontSize(9.5).font("Helvetica-Bold").fillColor(TEXT_DARK).text(companyName, left, brandY, { width: 230 });
 
       // Right Column: TAX INVOICE Header & Metadata block (Right aligned)
       const metaBoxX = 290;
@@ -236,43 +207,56 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       doc.fontSize(9.5)
         .font("Helvetica-Bold")
         .fillColor(TEXT_DARK)
-        .text("ISSUED BY / ENTERPRISE", sellerX + 14, cardY + 12);
+        .text("ISSUED BY / ENTERPRISE", sellerX + 14, cardY + 11);
 
       const seller = snapshot.seller || { name: "", phone: "" };
       const issuedByName = company.name || companyName || "MASAKO ENTERPRISES PRIVATE LIMITED";
 
-      doc.fontSize(10)
+      // 1. Company Name
+      let curY = cardY + 25;
+      doc.fontSize(9)
         .font("Helvetica-Bold")
         .fillColor(TEXT_DARK)
-        .text(issuedByName, sellerX + 14, cardY + 27, { width: cardWidth - 28, lineGap: 1 });
+        .text(issuedByName, sellerX + 14, curY, { width: cardWidth - 28, lineGap: 1 });
+      curY += 12;
 
-      doc.fontSize(8.5)
+      // 2. Address
+      if (company.address) {
+        doc.fontSize(7)
+          .font("Helvetica")
+          .fillColor(TEXT_MUTED)
+          .text(company.address, sellerX + 14, curY, { width: cardWidth - 28, lineGap: 1, height: 20, ellipsis: true });
+        curY += 20;
+      } else {
+        curY += 4;
+      }
+
+      // 3. GST & PAN
+      const gstText = company.gst ? `GSTIN: ${company.gst}` : "";
+      const panText = company.pan ? `PAN: ${company.pan}` : "";
+      const taxLine = [gstText, panText].filter(Boolean).join("   ");
+      if (taxLine) {
+        doc.fontSize(7.5)
+          .font("Helvetica-Bold")
+          .fillColor(PRIMARY)
+          .text(taxLine, sellerX + 14, curY, { width: cardWidth - 28, ellipsis: true });
+        curY += 11;
+      }
+
+      // 4. Field Officer & Officer Number
+      doc.fontSize(7.5)
         .font("Helvetica")
         .fillColor(TEXT_MUTED)
-        .text(`Field Officer: `, sellerX + 14, cardY + 43, { continued: true })
+        .text("Field Officer: ", sellerX + 14, curY, { continued: true })
         .font("Helvetica-Bold")
         .fillColor(TEXT_DARK)
-        .text(seller.name || "Authorized Representative");
-
-      doc.font("Helvetica")
+        .text(seller.name || "Authorized Representative", { continued: true })
+        .font("Helvetica")
         .fillColor(TEXT_MUTED)
-        .text(`Officer Contact: `, sellerX + 14, cardY + 57, { continued: true })
+        .text("   |   ", { continued: true })
         .font("Helvetica-Bold")
         .fillColor(TEXT_DARK)
         .text(seller.phone || "N/A");
-
-      if (company.gst) {
-        doc.font("Helvetica")
-          .fillColor(TEXT_MUTED)
-          .text(`GSTIN: `, sellerX + 14, cardY + 71, { continued: true })
-          .font("Helvetica-Bold")
-          .fillColor(PRIMARY)
-          .text(company.gst, { width: cardWidth - 28, ellipsis: true });
-      } else {
-        doc.font("Helvetica")
-          .fillColor(TEXT_MUTED)
-          .text(`Channel: Direct Field Distribution Network`, sellerX + 14, cardY + 71);
-      }
 
       // 4. Line Items Table
       const tableTop = 250;
@@ -367,12 +351,15 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
         .fillColor(SUCCESS_GREEN)
         .text("PAID & CONFIRMED");
 
-      doc.fontSize(7.5)
+      const declarationText = company.terms || "This computer-generated tax invoice serves as an official receipt of sale and proof of purchase.";
+      doc.fontSize(7)
         .font("Helvetica")
         .fillColor(TEXT_MUTED)
-        .text("This computer-generated tax invoice serves as an official receipt of sale and proof of purchase.", left + 14, summaryTop + 62, {
+        .text(declarationText, left + 14, summaryTop + 58, {
           width: paymentBoxWidth - 28,
-          lineGap: 2,
+          lineGap: 1.5,
+          height: 32,
+          ellipsis: true,
         });
 
       // Right Box: Financial Breakdown
@@ -415,15 +402,16 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       const signY = 485;
       doc.moveTo(left, signY).lineTo(right, signY).lineWidth(0.5).strokeColor(BORDER_COLOR).stroke();
 
-      doc.fontSize(9)
+      const termsNote = company.terms ? company.terms : "Thank you for partnering with FemmeFlo!";
+      doc.fontSize(8.5)
         .font("Helvetica-Bold")
         .fillColor(PRIMARY)
-        .text("Thank you for partnering with FemmeFlo!", left, signY + 16, { align: "center" });
+        .text(termsNote, left, signY + 14, { align: "center", width: pageWidth });
 
-      doc.fontSize(8)
+      doc.fontSize(7.5)
         .font("Helvetica")
         .fillColor(TEXT_MUTED)
-        .text("For questions, orders, or support, please contact your field seller or FemmeFlo administration.", left, signY + 30, { align: "center" });
+        .text("For questions, orders, or support, please contact your field officer or administration.", left, signY + 30, { align: "center" });
 
       // 7. Footer
       const footerY = 780;
