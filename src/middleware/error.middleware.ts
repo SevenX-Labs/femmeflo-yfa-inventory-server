@@ -35,8 +35,25 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _request, resp
 
   // 3. Prisma Known Request Errors
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2002") {
+      const target = (error.meta?.target as string[] | string | undefined) || [];
+      const targetStr = Array.isArray(target) ? target.join(", ") : String(target);
+      if (targetStr.includes("employeeCode")) {
+        response.status(409).json({ success: false, message: "An employee with this Employee Code already exists" });
+        return;
+      }
+      if (targetStr.includes("phone")) {
+        response.status(409).json({ success: false, message: "An employee with this phone number already exists" });
+        return;
+      }
+      if (targetStr.includes("email")) {
+        response.status(409).json({ success: false, message: "An employee with this email address already exists" });
+        return;
+      }
+      response.status(409).json({ success: false, message: "A record with those unique details already exists" });
+      return;
+    }
     const errors: Record<string, [number, string]> = {
-      P2002: [409, "A record with those unique details already exists"],
       P2003: [409, "Related record does not exist or is still in use"],
       P2025: [404, "Resource not found"],
       P2028: [409, "Transaction timed out or already completed. Please retry"],

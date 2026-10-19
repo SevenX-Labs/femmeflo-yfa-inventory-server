@@ -133,3 +133,71 @@ test("tightening a Manager's territory cannot silently hide an existing Seller",
   assert.equal(changed.status, 409);
   assert.equal((await database.user.findUnique({ where: { id: unrestrictedId } }))?.state, null);
 });
+
+test("Manager employeeCode can be added via admin and edited, and field officers with different villages in manager district match successfully", async () => {
+  // 1. Create manager with employeeCode and territory with headquarters village
+  const mgrRes = await request("/admin/managers", "POST", {
+    name: "Balaghat Manager",
+    phone: "+919000000010",
+    password,
+    employeeCode: "MGR-BG-01",
+    state: "Madhya Pradesh",
+    district: "Balaghat",
+    village: "Katangi",
+    permissions: ["SELLER_READ", "SELLER_CREATE"],
+  });
+  assert.equal(mgrRes.status, 201);
+  const mgrId = mgrRes.body.data.user.id;
+  assert.equal((mgrRes.body.data.user as any).employeeCode, "MGR-BG-01");
+
+  // Verify fetch returns employeeCode
+  const getMgr = await request(`/admin/managers/${mgrId}`, "GET");
+  assert.equal(getMgr.status, 200);
+  assert.equal((getMgr.body.data.user as any).employeeCode, "MGR-BG-01");
+
+  // 2. Edit manager employeeCode via admin PATCH
+  const patchMgr = await request(`/admin/managers/${mgrId}`, "PATCH", {
+    employeeCode: "MGR-BG-01-EDITED",
+  });
+  assert.equal(patchMgr.status, 200);
+  assert.equal((patchMgr.body.data.user as any).employeeCode, "MGR-BG-01-EDITED");
+
+  // 3. Add field officer in different village within Balaghat district (e.g. Waraseoni)
+  const sellerRes = await request("/admin/sellers", "POST", {
+    name: "Waraseoni Field Officer",
+    phone: "+919000000011",
+    password,
+    managerId: mgrId,
+    state: "Madhya Pradesh",
+    district: "Balaghat",
+    village: "Waraseoni",
+    employeeCode: "FO-WAR-01",
+  });
+  assert.equal(sellerRes.status, 201);
+  const foId = sellerRes.body.data.user.id;
+  assert.equal((sellerRes.body.data.user as any).managerId, mgrId);
+  assert.equal((sellerRes.body.data.user as any).village, "Waraseoni");
+  assert.equal((sellerRes.body.data.user as any).district, "Balaghat");
+  assert.equal((sellerRes.body.data.user as any).state, "Madhya Pradesh");
+
+  // 4. Update field officer territory and employeeCode
+  const patchSeller = await request(`/admin/sellers/${foId}`, "PATCH", {
+    village: "Baihar",
+    employeeCode: "FO-WAR-01-EDITED",
+  });
+  assert.equal(patchSeller.status, 200);
+  assert.equal((patchSeller.body.data.user as any).village, "Baihar");
+  assert.equal((patchSeller.body.data.user as any).employeeCode, "FO-WAR-01-EDITED");
+
+  // 5. Seller with mismatched district returns 403
+  const badSeller = await request("/admin/sellers", "POST", {
+    name: "Seoni Field Officer",
+    phone: "+919000000012",
+    password,
+    managerId: mgrId,
+    state: "Madhya Pradesh",
+    district: "Seoni",
+    village: "Seoni",
+  });
+  assert.equal(badSeller.status, 403);
+});

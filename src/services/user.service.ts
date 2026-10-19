@@ -14,6 +14,7 @@ export const userListSelect = {
       name: true,
       email: true,
       phone: true,
+      employeeCode: true,
     },
   },
   stockLocation: {
@@ -33,27 +34,52 @@ export const userListSelect = {
 
 type Territory = { state?: string | null | undefined; district?: string | null | undefined; village?: string | null | undefined };
 
+function cleanStr(val?: string | null): string | null {
+  if (val === undefined || val === null) return null;
+  const trimmed = val.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export function validateTerritory(territory: Territory) {
-  if (territory.district && !territory.state) throw new HttpError(400, "State is required with district");
-  if (territory.village && !territory.district) throw new HttpError(400, "District is required with village");
+  const state = cleanStr(territory.state);
+  const district = cleanStr(territory.district);
+  const village = cleanStr(territory.village);
+  if (district && !state) throw new HttpError(400, "State is required with district");
+  if (village && !district) throw new HttpError(400, "District is required with village");
 }
 
 export function assignedSellerScope(manager: PublicUser): Prisma.UserWhereInput {
-  const scope: Prisma.UserWhereInput = { role: "SELLER", managerId: manager.id };
-  for (const field of ["state", "district", "village"] as const) {
-    if (manager[field]) scope[field] = { equals: manager[field], mode: "insensitive" };
-  }
-  return scope;
+  return { role: "SELLER", managerId: manager.id };
 }
 
 function sellerTerritory(input: Territory, manager: Territory) {
-  const territory = { state: input.state ?? manager.state ?? null, district: input.district ?? manager.district ?? null, village: input.village ?? manager.village ?? null };
+  const mState = cleanStr(manager.state);
+  const mDistrict = cleanStr(manager.district);
+
+  const sState = cleanStr(input.state) ?? mState;
+  const sDistrict = cleanStr(input.district) ?? (sState && mState && sState.toLowerCase() === mState.toLowerCase() ? mDistrict : null);
+  const sVillage = cleanStr(input.village);
+
+  const territory = {
+    state: sState,
+    district: sDistrict,
+    village: sVillage,
+  };
   validateTerritory(territory);
-  for (const field of ["state", "district", "village"] as const) {
-    if (manager[field] && manager[field]!.toLowerCase() !== territory[field]?.toLowerCase()) {
-      throw new HttpError(403, "Seller territory must be within the assigned Manager's territory");
-    }
+
+  if (mState && territory.state && mState.toLowerCase() !== territory.state.toLowerCase()) {
+    throw new HttpError(
+      403,
+      `Field officer state (${territory.state}) does not match manager assigned state (${mState})`
+    );
   }
+  if (mDistrict && territory.district && mDistrict.toLowerCase() !== territory.district.toLowerCase()) {
+    throw new HttpError(
+      403,
+      `Field officer district (${territory.district}) does not match manager assigned district (${mDistrict})`
+    );
+  }
+
   return territory;
 }
 
@@ -68,17 +94,17 @@ export async function createSeller(database: PrismaClient, input: CreateSellerIn
         if (!manager) throw new HttpError(404, "Active Manager not found");
         const territory = sellerTerritory(input, manager);
         const seller = await tx.user.create({ data: {
-          name: input.name,
+          name: input.name.trim(),
           phone: input.phone,
-          alternatePhone: input.alternatePhone || null,
-          email: input.email ?? null,
-          designation: input.designation || null,
-          employeeCode: input.employeeCode || null,
-          address: input.address || null,
-          pincode: input.pincode || null,
-          aadharNumber: input.aadharNumber || null,
-          drivingLicense: input.drivingLicense || null,
-          education: input.education || null,
+          alternatePhone: cleanStr(input.alternatePhone),
+          email: cleanStr(input.email),
+          designation: cleanStr(input.designation),
+          employeeCode: cleanStr(input.employeeCode),
+          address: cleanStr(input.address),
+          pincode: cleanStr(input.pincode),
+          aadharNumber: cleanStr(input.aadharNumber),
+          drivingLicense: cleanStr(input.drivingLicense),
+          education: cleanStr(input.education),
           active: input.active !== undefined ? input.active : true,
           passwordHash,
           role: "SELLER",
@@ -102,11 +128,29 @@ export async function createSeller(database: PrismaClient, input: CreateSellerIn
 export async function createManager(database: PrismaClient, input: CreateManagerInput) {
   validateTerritory(input);
   const passwordHash = await bcrypt.hash(input.password, 12);
-  return database.user.create({ data: {
-    name: input.name, phone: input.phone, email: input.email ?? null, passwordHash,
-    role: "MANAGER", permissions: input.permissions,
-    state: input.state ?? null, district: input.district ?? null, village: input.village ?? null,
-  }, select: userListSelect });
+  const employeeCode = cleanStr(input.employeeCode);
+  return database.user.create({
+    data: {
+      name: input.name.trim(),
+      phone: input.phone,
+      alternatePhone: cleanStr(input.alternatePhone),
+      email: cleanStr(input.email),
+      employeeCode,
+      designation: cleanStr(input.designation) || "Regional Manager",
+      address: cleanStr(input.address),
+      pincode: cleanStr(input.pincode),
+      aadharNumber: cleanStr(input.aadharNumber),
+      drivingLicense: cleanStr(input.drivingLicense),
+      education: cleanStr(input.education),
+      passwordHash,
+      role: "MANAGER",
+      permissions: input.permissions,
+      state: cleanStr(input.state),
+      district: cleanStr(input.district),
+      village: cleanStr(input.village),
+    },
+    select: userListSelect,
+  });
 }
 
 export async function listUsers(database: PrismaClient, scope: Prisma.UserWhereInput, query: ListUsersInput) {
@@ -139,18 +183,22 @@ export async function updateUser(database: PrismaClient, roleOrScope: "MANAGER" 
     if (!existing) throw new HttpError(404, "User not found");
     const updated = { ...existing, ...input };
     validateTerritory(updated);
-    if (role === "SELLER" && existing.managerId) {
-      const manager = await tx.user.findUnique({ where: { id: existing.managerId }, select: publicUserSelect });
+    const targetManagerId = input.managerId !== undefined ? input.managerId : existing.managerId;
+    if (role === "SELLER" && targetManagerId) {
+      const manager = await tx.user.findUnique({ where: { id: targetManagerId }, select: publicUserSelect });
       if (!manager) throw new HttpError(404, "Manager not found");
       sellerTerritory(updated, manager);
     }
-    if (role === "MANAGER" && ["state", "district", "village"].some((field) => field in input)) {
+    if (role === "MANAGER" && ["state", "district"].some((field) => field in input)) {
       const sellers = await tx.user.findMany({ where: { managerId: id, role: "SELLER" }, select: { state: true, district: true, village: true } });
+      const nextState = cleanStr(updated.state);
+      const nextDistrict = cleanStr(updated.district);
       for (const seller of sellers) {
-        for (const field of ["state", "district", "village"] as const) {
-          if (updated[field] && updated[field]!.toLowerCase() !== seller[field]?.toLowerCase()) {
-            throw new HttpError(409, "Existing Sellers fall outside the requested Manager territory");
-          }
+        if (nextState && (!seller.state || seller.state.toLowerCase() !== nextState.toLowerCase())) {
+          throw new HttpError(409, "Existing Sellers fall outside the requested Manager territory");
+        }
+        if (nextDistrict && (!seller.district || seller.district.toLowerCase() !== nextDistrict.toLowerCase())) {
+          throw new HttpError(409, "Existing Sellers fall outside the requested Manager territory");
         }
       }
     }
@@ -159,25 +207,27 @@ export async function updateUser(database: PrismaClient, roleOrScope: "MANAGER" 
       designation, employeeCode, address, pincode, aadharNumber, drivingLicense, education, managerId
     } = input;
     const data: Prisma.UserUpdateInput = {};
-    if (name !== undefined) data.name = name;
+    if (name !== undefined) data.name = name.trim();
     if (phone !== undefined) data.phone = phone;
-    if (alternatePhone !== undefined) data.alternatePhone = alternatePhone || null;
-    if (email !== undefined) data.email = email || null;
+    if (alternatePhone !== undefined) data.alternatePhone = cleanStr(alternatePhone);
+    if (email !== undefined) data.email = cleanStr(email);
     if (active !== undefined) data.active = active;
-    if (state !== undefined) data.state = state || null;
-    if (district !== undefined) data.district = district || null;
-    if (village !== undefined) data.village = village || null;
-    if (designation !== undefined) data.designation = designation || null;
-    if (employeeCode !== undefined) data.employeeCode = employeeCode || null;
-    if (address !== undefined) data.address = address || null;
-    if (pincode !== undefined) data.pincode = pincode || null;
-    if (aadharNumber !== undefined) data.aadharNumber = aadharNumber || null;
-    if (drivingLicense !== undefined) data.drivingLicense = drivingLicense || null;
-    if (education !== undefined) data.education = education || null;
-    if (managerId !== undefined && role === "SELLER") data.manager = { connect: { id: managerId } };
+    if (state !== undefined) data.state = cleanStr(state);
+    if (district !== undefined) data.district = cleanStr(district);
+    if (village !== undefined) data.village = cleanStr(village);
+    if (designation !== undefined) data.designation = cleanStr(designation);
+    if (employeeCode !== undefined) data.employeeCode = cleanStr(employeeCode);
+    if (address !== undefined) data.address = cleanStr(address);
+    if (pincode !== undefined) data.pincode = cleanStr(pincode);
+    if (aadharNumber !== undefined) data.aadharNumber = cleanStr(aadharNumber);
+    if (drivingLicense !== undefined) data.drivingLicense = cleanStr(drivingLicense);
+    if (education !== undefined) data.education = cleanStr(education);
+    if (managerId !== undefined && role === "SELLER") {
+      data.manager = managerId ? { connect: { id: managerId } } : { disconnect: true };
+    }
     if (active !== undefined && active !== existing.active) data.tokenVersion = { increment: 1 };
     const user = await tx.user.update({ where: { id }, data, select: userListSelect });
-    if (role === "SELLER" && name !== undefined) await tx.stockLocation.updateMany({ where: { sellerId: id }, data: { name } });
+    if (role === "SELLER" && name !== undefined) await tx.stockLocation.updateMany({ where: { sellerId: id }, data: { name: name.trim() } });
     return user;
   });
 }
