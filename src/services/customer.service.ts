@@ -208,9 +208,6 @@ export function createCustomerService(database: PrismaClient) {
         where.sellerId = user.id;
       } else if (user.role === "MANAGER") {
         const managerWhere: Prisma.CustomerWhereInput = { OR: [{ seller: { managerId: user.id } }, { sellerId: user.id }] };
-        if (user.state) managerWhere.state = { equals: user.state, mode: "insensitive" };
-        if (user.district) managerWhere.district = { equals: user.district, mode: "insensitive" };
-        if (user.village) managerWhere.village = { equals: user.village, mode: "insensitive" };
 
         if (query.sellerId) {
           where.AND = [managerWhere, { sellerId: query.sellerId }];
@@ -264,15 +261,6 @@ export function createCustomerService(database: PrismaClient) {
       }
       if (user.role === "MANAGER") {
         if (customer.sellerId !== user.id && customer.seller.managerId !== user.id) {
-          throw new HttpError(404, "Customer not found or outside assigned scope");
-        }
-        if (user.state && customer.state.toLowerCase() !== user.state.toLowerCase()) {
-          throw new HttpError(404, "Customer not found or outside assigned scope");
-        }
-        if (user.district && customer.district.toLowerCase() !== user.district.toLowerCase()) {
-          throw new HttpError(404, "Customer not found or outside assigned scope");
-        }
-        if (user.village && customer.village && customer.village.toLowerCase() !== user.village.toLowerCase()) {
           throw new HttpError(404, "Customer not found or outside assigned scope");
         }
       }
