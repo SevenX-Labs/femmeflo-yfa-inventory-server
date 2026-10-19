@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import type { SellerSalesService } from "../../services/seller/sales.service.js";
 import type { PublicUser } from "../../services/auth/auth.types.js";
 import { parseInput, idSchema } from "../../middleware/validation.js";
-import { createSaleSchema, listSalesSchema } from "../sales.validation.js";
+import { createSaleSchema, listSalesSchema, updateSaleSchema } from "../sales.validation.js";
 import { collectPaymentSchema } from "../payment.validation.js";
 
 export function createSellerSalesController(service: SellerSalesService) {
@@ -36,6 +36,18 @@ export function createSellerSalesController(service: SellerSalesService) {
       response.json({
         success: true,
         message: "Sale details retrieved",
+        data: { sale },
+      });
+    },
+
+    update: async (request: Request, response: Response) => {
+      const user = response.locals.authUser as PublicUser;
+      const id = parseInput(idSchema, request.params["id"]);
+      const input = parseInput(updateSaleSchema, request.body);
+      const sale = await service.update(user.id, id, input);
+      response.json({
+        success: true,
+        message: "Sale details updated successfully",
         data: { sale },
       });
     },

@@ -10,6 +10,7 @@ export function createManagerSalesRoutes(database: PrismaClient) {
 
   router.get("/", requirePermission("approve_sales"), controller.list);
   router.get("/:id", requirePermission("approve_sales"), controller.get);
+  router.patch("/:id", requirePermission("approve_sales"), controller.update);
 
   return router;
 }

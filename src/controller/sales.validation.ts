@@ -26,3 +26,12 @@ export const rejectSaleSchema = z.strictObject({
 export type CreateSaleInput = z.infer<typeof createSaleSchema>;
 export type ListSalesInput = z.infer<typeof listSalesSchema>;
 export type RejectSaleInput = z.infer<typeof rejectSaleSchema>;
+
+export const updateSaleSchema = z.strictObject({
+  customerId: z.string().uuid().optional(),
+  quantity: z.coerce.number().int().positive().optional(),
+  unitPricePaise: z.coerce.number().int().positive().optional(),
+  paymentMode: z.enum(["CASH", "BANK", "PENDING"]).optional(),
+});
+
+export type UpdateSaleInput = z.infer<typeof updateSaleSchema>;

@@ -9,6 +9,7 @@ export function createAdminSalesRoutes(database: PrismaClient) {
 
   router.get("/", controller.list);
   router.get("/:id", controller.get);
+  router.patch("/:id", controller.update);
 
   return router;
 }
