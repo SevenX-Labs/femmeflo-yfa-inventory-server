@@ -92,22 +92,21 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
         };
       }
 
-      if (!snapshot.company || !snapshot.company.gst) {
-        const s = await database.businessSettings.findUnique({ where: { id: 1 } });
-        if (s) {
-          snapshot = {
-            ...snapshot,
-            company: {
-              name: s.companyName,
-              gst: s.companyGst,
-              pan: s.companyPan,
-              address: s.companyAddress,
-              phone: s.companyPhone,
-              email: s.companyEmail,
-              terms: s.invoiceTerms,
-            },
-          };
-        }
+      // Real-time update: always overlay latest BusinessSettings configured in admin
+      const s = await database.businessSettings.findUnique({ where: { id: 1 } });
+      if (s) {
+        snapshot = {
+          ...snapshot,
+          company: {
+            name: s.companyName || snapshot.company?.name || "MASAKO ENTERPRISES PRIVATE LIMITED",
+            gst: s.companyGst || snapshot.company?.gst,
+            pan: s.companyPan || snapshot.company?.pan,
+            address: s.companyAddress || snapshot.company?.address,
+            phone: s.companyPhone || snapshot.company?.phone,
+            email: s.companyEmail || snapshot.company?.email,
+            terms: s.invoiceTerms || snapshot.company?.terms,
+          },
+        };
       }
       const pdfBuffer = await generateInvoicePdfBuffer(snapshot);
       const isDownload = request.query["download"] === "true";

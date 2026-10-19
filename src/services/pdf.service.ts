@@ -13,13 +13,13 @@ export type InvoiceSnapshot = {
   saleId: string;
   date: string;
   company?: {
-    name?: string | null;
-    gst?: string | null;
-    pan?: string | null;
-    address?: string | null;
-    phone?: string | null;
-    email?: string | null;
-    terms?: string | null;
+    name?: string | null | undefined;
+    gst?: string | null | undefined;
+    pan?: string | null | undefined;
+    address?: string | null | undefined;
+    phone?: string | null | undefined;
+    email?: string | null | undefined;
+    terms?: string | null | undefined;
   };
   customer: {
     shopName: string;
@@ -70,19 +70,19 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       const right = 555;
       const pageWidth = right - left; // 515
 
-      // Resolve Logo
-      const logoCandidates = [
-        path.resolve(process.cwd(), "public", "assets", "logo.png"),
-        path.resolve(__dirname, "../../public/assets/logo.png"),
-        path.resolve(__dirname, "../../../public/assets/logo.png"),
-      ];
-      let logoPath: string | null = null;
-      for (const p of logoCandidates) {
-        if (fsSync.existsSync(p)) {
-          logoPath = p;
-          break;
-        }
-      }
+      // Resolve FemmeFlo and Masako Logos
+      const resolveAsset = (filename: string) => {
+        const candidates = [
+          path.resolve(process.cwd(), "public", "assets", filename),
+          path.resolve(__dirname, "../../public/assets", filename),
+          path.resolve(__dirname, "../../../public/assets", filename),
+          path.resolve(process.cwd(), "../femmeflo/public", filename),
+        ];
+        return candidates.find((p) => fsSync.existsSync(p)) || null;
+      };
+
+      const femmefloLogoPath = resolveAsset("femmeflo-logo.png") || resolveAsset("Femmeflo logo.png") || resolveAsset("logo.png");
+      const masakoLogoPath = resolveAsset("masako-logo.jpeg") || resolveAsset("Masako logo.jpeg");
 
       // 1. Top Decorative Brand Bar
       doc.rect(left, 35, pageWidth, 4).fill(PRIMARY);
@@ -95,14 +95,31 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       const companyName = company.name || "FemmeFlo";
 
       let brandY = headerY;
-      if (logoPath) {
+      let drawnLogo = false;
+
+      // Draw FemmeFlo Logo
+      if (femmefloLogoPath) {
         try {
-          doc.image(logoPath, left, headerY, { height: 36 });
-          brandY += 40;
-        } catch {
-          doc.fontSize(20).font("Helvetica-Bold").fillColor(PRIMARY).text(companyName.toUpperCase(), left, headerY);
-          brandY += 24;
+          doc.image(femmefloLogoPath, left, headerY, { height: 36 });
+          drawnLogo = true;
+        } catch (e) {
+          // ignore error
         }
+      }
+
+      // Draw Masako Brand Logo beside or below
+      if (masakoLogoPath) {
+        try {
+          const masakoX = femmefloLogoPath ? left + 130 : left;
+          doc.image(masakoLogoPath, masakoX, headerY, { height: 34 });
+          drawnLogo = true;
+        } catch (e) {
+          // ignore error
+        }
+      }
+
+      if (drawnLogo) {
+        brandY += 42;
       } else {
         doc.fontSize(20).font("Helvetica-Bold").fillColor(PRIMARY).text(companyName.toUpperCase(), left, headerY);
         brandY += 24;
@@ -160,10 +177,7 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       doc.fontSize(8.5).font("Helvetica").fillColor(TEXT_MUTED).text("Date & Time:", metaBoxX, metaY, { width: 100, align: "right" });
       doc.font("Helvetica-Bold").fillColor(TEXT_DARK).text(`${formattedDate}, ${formattedTime}`, metaBoxX + 105, metaY, { width: metaBoxWidth - 105, align: "right" });
 
-      metaY += 14;
-      // Sale ID line
-      doc.fontSize(8).font("Helvetica").fillColor(TEXT_MUTED).text("Sale Reference:", metaBoxX, metaY, { width: 100, align: "right" });
-      doc.font("Helvetica").fillColor(TEXT_MUTED).text(snapshot.saleId || "N/A", metaBoxX + 105, metaY, { width: metaBoxWidth - 105, align: "right" });
+      // Sale Reference line removed per user requirements
 
       // Divider below header
       doc.moveTo(left, 118).lineTo(right, 118).lineWidth(1).strokeColor(BORDER_COLOR).stroke();
@@ -214,7 +228,7 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
           .text(territory, { width: cardWidth - 28, ellipsis: true });
       }
 
-      // Seller Card (Right)
+      // Seller / Enterprise Card (Right)
       const sellerX = left + cardWidth + cardGap;
       doc.roundedRect(sellerX, cardY, cardWidth, cardHeight, 6)
         .fillAndStroke("#F8FAFC", BORDER_COLOR);
@@ -222,26 +236,43 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
       doc.fontSize(9.5)
         .font("Helvetica-Bold")
         .fillColor(TEXT_DARK)
-        .text("ISSUED BY / SELLER", sellerX + 14, cardY + 12);
+        .text("ISSUED BY / ENTERPRISE", sellerX + 14, cardY + 12);
 
       const seller = snapshot.seller || { name: "", phone: "" };
-      doc.fontSize(11)
+      const issuedByName = companyName || "MASAKO ENTERPRISES PRIVATE LIMITED";
+
+      doc.fontSize(10)
         .font("Helvetica-Bold")
         .fillColor(TEXT_DARK)
-        .text(seller.name || "Authorized Representative", sellerX + 14, cardY + 28, { width: cardWidth - 28 });
+        .text(issuedByName, sellerX + 14, cardY + 27, { width: cardWidth - 28, lineGap: 1 });
 
       doc.fontSize(8.5)
         .font("Helvetica")
         .fillColor(TEXT_MUTED)
-        .text(`Phone Number: `, sellerX + 14, cardY + 44, { continued: true })
+        .text(`Field Officer: `, sellerX + 14, cardY + 43, { continued: true })
+        .font("Helvetica-Bold")
+        .fillColor(TEXT_DARK)
+        .text(seller.name || "Authorized Representative");
+
+      doc.font("Helvetica")
+        .fillColor(TEXT_MUTED)
+        .text(`Officer Contact: `, sellerX + 14, cardY + 57, { continued: true })
         .font("Helvetica-Bold")
         .fillColor(TEXT_DARK)
         .text(seller.phone || "N/A");
 
-      doc.font("Helvetica")
-        .fillColor(TEXT_MUTED)
-        .text(`Channel: Direct Field Distribution`, sellerX + 14, cardY + 58)
-        .text(`Authorized FemmeFlo Seller Network`, sellerX + 14, cardY + 72);
+      if (company.gst) {
+        doc.font("Helvetica")
+          .fillColor(TEXT_MUTED)
+          .text(`GSTIN: `, sellerX + 14, cardY + 71, { continued: true })
+          .font("Helvetica-Bold")
+          .fillColor(PRIMARY)
+          .text(company.gst, { width: cardWidth - 28, ellipsis: true });
+      } else {
+        doc.font("Helvetica")
+          .fillColor(TEXT_MUTED)
+          .text(`Channel: Direct Field Distribution Network`, sellerX + 14, cardY + 71);
+      }
 
       // 4. Line Items Table
       const tableTop = 250;
@@ -424,23 +455,21 @@ export async function processInvoicePdf(database: PrismaClient, invoiceId: strin
   }
 
   let snapshot = invoice.snapshot as unknown as InvoiceSnapshot;
-  // If company details not in snapshot, fetch latest from BusinessSettings
-  if (!snapshot.company || !snapshot.company.gst) {
-    const settings = await database.businessSettings.findUnique({ where: { id: 1 } });
-    if (settings) {
-      snapshot = {
-        ...snapshot,
-        company: {
-          name: settings.companyName,
-          gst: settings.companyGst,
-          pan: settings.companyPan,
-          address: settings.companyAddress,
-          phone: settings.companyPhone,
-          email: settings.companyEmail,
-          terms: settings.invoiceTerms,
-        },
-      };
-    }
+  // Real-time update: always query latest BusinessSettings so edits to enterprise name, GST, etc. reflect immediately on PDF render
+  const settings = await database.businessSettings.findUnique({ where: { id: 1 } });
+  if (settings) {
+    snapshot = {
+      ...snapshot,
+      company: {
+        name: settings.companyName || snapshot.company?.name || "MASAKO ENTERPRISES PRIVATE LIMITED",
+        gst: settings.companyGst || snapshot.company?.gst,
+        pan: settings.companyPan || snapshot.company?.pan,
+        address: settings.companyAddress || snapshot.company?.address,
+        phone: settings.companyPhone || snapshot.company?.phone,
+        email: settings.companyEmail || snapshot.company?.email,
+        terms: settings.invoiceTerms || snapshot.company?.terms,
+      },
+    };
   }
   const pdfBuffer = await generateInvoicePdfBuffer(snapshot);
 
