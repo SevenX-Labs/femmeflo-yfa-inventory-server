@@ -48,7 +48,12 @@ export function createSellerSalesService(database: PrismaClient) {
       let settings = await database.businessSettings.findUnique({ where: { id: 1 } });
       if (!settings) {
         settings = await database.businessSettings.create({
-          data: { id: 1, minimumPricePaise: 2500, incentiveRatePaise: null },
+          data: {
+            id: 1,
+            minimumPricePaise: 2500,
+            incentiveRatePaise: null,
+            companyName: "MASAKO ENTERPRISES PRIVATE LIMITED",
+          },
         });
       }
 
@@ -158,7 +163,7 @@ export function createSellerSalesService(database: PrismaClient) {
           saleId: sale.id,
           date: sale.createdAt.toISOString(),
           company: {
-            name: settings.companyName,
+            name: settings.companyName || "MASAKO ENTERPRISES PRIVATE LIMITED",
             gst: settings.companyGst,
             pan: settings.companyPan,
             address: settings.companyAddress,

@@ -73,7 +73,14 @@ export function createAdminApprovalService(database: PrismaClient) {
         // Read BusinessSettings for incentive rate
         let settings = await tx.businessSettings.findUnique({ where: { id: 1 } });
         if (!settings) {
-          settings = await tx.businessSettings.create({ data: { id: 1, minimumPricePaise: 2500, incentiveRatePaise: null } });
+          settings = await tx.businessSettings.create({
+            data: {
+              id: 1,
+              minimumPricePaise: 2500,
+              incentiveRatePaise: null,
+              companyName: "MASAKO ENTERPRISES PRIVATE LIMITED",
+            },
+          });
         }
 
         const sellerUser = await tx.user.findUnique({
@@ -107,7 +114,7 @@ export function createAdminApprovalService(database: PrismaClient) {
           saleId: sale.id,
           date: new Date().toISOString(),
           company: {
-            name: settings.companyName,
+            name: settings.companyName || "MASAKO ENTERPRISES PRIVATE LIMITED",
             gst: settings.companyGst,
             pan: settings.companyPan,
             address: settings.companyAddress,

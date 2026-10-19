@@ -92,7 +92,7 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
 
       // Brand Logo / Title & Company GST Details (Left column: width 250)
       const company = snapshot.company || {};
-      const companyName = company.name || "FemmeFlo";
+      const companyName = company.name || "MASAKO ENTERPRISES PRIVATE LIMITED";
 
       let brandY = headerY;
       let drawnLogo = false;
@@ -239,7 +239,7 @@ export function generateInvoicePdfBuffer(snapshot: InvoiceSnapshot): Promise<Buf
         .text("ISSUED BY / ENTERPRISE", sellerX + 14, cardY + 12);
 
       const seller = snapshot.seller || { name: "", phone: "" };
-      const issuedByName = companyName || "MASAKO ENTERPRISES PRIVATE LIMITED";
+      const issuedByName = company.name || companyName || "MASAKO ENTERPRISES PRIVATE LIMITED";
 
       doc.fontSize(10)
         .font("Helvetica-Bold")
@@ -449,13 +449,8 @@ export async function processInvoicePdf(database: PrismaClient, invoiceId: strin
     throw new Error(`Invoice with ID ${invoiceId} not found`);
   }
 
-  // Idempotency check: if PDF already generated and stored, skip regenerate
-  if (invoice.pdfPath) {
-    return invoice.pdfPath;
-  }
-
+  // If company settings were updated after PDF creation, or PDF not created, re-generate
   let snapshot = invoice.snapshot as unknown as InvoiceSnapshot;
-  // Real-time update: always query latest BusinessSettings so edits to enterprise name, GST, etc. reflect immediately on PDF render
   const settings = await database.businessSettings.findUnique({ where: { id: 1 } });
   if (settings) {
     snapshot = {
