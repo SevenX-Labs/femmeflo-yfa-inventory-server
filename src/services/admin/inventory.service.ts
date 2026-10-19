@@ -1,5 +1,5 @@
 import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
-import type { CreateWarehouseInput, CreateReceiptInput, CreateTransferInput, ListTransactionsInput } from "../../controller/inventory.validation.js";
+import type { CreateWarehouseInput, CreateReceiptInput, CreateTransferInput, ListTransactionsInput, UpdateLocationBalanceInput } from "../../controller/inventory.validation.js";
 import { HttpError } from "../../middleware/validation.js";
 
 export function createAdminInventoryService(database: PrismaClient) {
@@ -182,6 +182,53 @@ export function createAdminInventoryService(database: PrismaClient) {
 
         return { source: updatedSource, destination: updatedDestination, movement };
       }, { timeout: 30000, maxWait: 10000 });
+    },
+
+    updateLocationBalance: async (actorId: string, locationId: string, input: UpdateLocationBalanceInput) => {
+      return database.$transaction(async (tx) => {
+        const location = await tx.stockLocation.findUnique({ where: { id: locationId } });
+        if (!location) {
+          throw new HttpError(404, "Stock location not found");
+        }
+
+        const oldBalance = location.balance;
+        const newBalance = input.balance;
+        const diff = newBalance - oldBalance;
+
+        if (diff === 0) {
+          return { location, movement: null, diff: 0 };
+        }
+
+        const updatedLocation = await tx.stockLocation.update({
+          where: { id: location.id },
+          data: { balance: newBalance },
+        });
+
+        let movement = null;
+        if (diff > 0) {
+          // Positive adjustment: recorded as RECEIPT into this location
+          movement = await tx.stockMovement.create({
+            data: {
+              type: "RECEIPT",
+              quantity: diff,
+              destinationId: location.id,
+              actorId,
+            },
+          });
+        } else {
+          // Negative adjustment: quantity deducted
+          movement = await tx.stockMovement.create({
+            data: {
+              type: "TRANSFER",
+              quantity: Math.abs(diff),
+              sourceId: location.id,
+              actorId,
+            },
+          });
+        }
+
+        return { location: updatedLocation, movement, diff, oldBalance, newBalance };
+      });
     },
 
     listTransactions: async (query: ListTransactionsInput) => {

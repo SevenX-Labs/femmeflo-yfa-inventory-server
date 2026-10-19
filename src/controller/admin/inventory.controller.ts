@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import type { AdminInventoryService } from "../../services/admin/inventory.service.js";
 import type { PublicUser } from "../../services/auth/auth.types.js";
 import { parseInput } from "../../middleware/validation.js";
-import { createWarehouseSchema, createReceiptSchema, createTransferSchema, listTransactionsSchema } from "../inventory.validation.js";
+import { createWarehouseSchema, createReceiptSchema, createTransferSchema, listTransactionsSchema, updateLocationBalanceSchema } from "../inventory.validation.js";
 
 export function createAdminInventoryController(service: AdminInventoryService) {
   return {
@@ -59,6 +59,18 @@ export function createAdminInventoryController(service: AdminInventoryService) {
       response.status(200).json({
         success: true,
         message: "Stock transfer completed",
+        data: result,
+      });
+    },
+
+    updateLocationBalance: async (request: Request, response: Response) => {
+      const user = response.locals.authUser as PublicUser;
+      const id = String(request.params.id);
+      const input = parseInput(updateLocationBalanceSchema, request.body);
+      const result = await service.updateLocationBalance(user.id, id, input);
+      response.status(200).json({
+        success: true,
+        message: "Stock balance updated successfully",
         data: result,
       });
     },

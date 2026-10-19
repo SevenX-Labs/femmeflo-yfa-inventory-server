@@ -25,3 +25,10 @@ export type CreateWarehouseInput = z.infer<typeof createWarehouseSchema>;
 export type CreateReceiptInput = z.infer<typeof createReceiptSchema>;
 export type CreateTransferInput = z.infer<typeof createTransferSchema>;
 export type ListTransactionsInput = z.infer<typeof listTransactionsSchema>;
+
+export const updateLocationBalanceSchema = z.strictObject({
+  balance: z.coerce.number().int().min(0, "Stock balance cannot be negative"),
+  reason: z.string().trim().max(200).optional(),
+});
+
+export type UpdateLocationBalanceInput = z.infer<typeof updateLocationBalanceSchema>;
