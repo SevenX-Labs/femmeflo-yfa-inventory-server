@@ -69,10 +69,13 @@ export function createCategoryService(database: PrismaClient) {
       }
 
       if (category._count.customers > 0) {
-        throw new HttpError(
-          400,
-          `Cannot delete category "${category.name}" because it is linked to ${category._count.customers} customer(s).`
-        );
+        // If linked to customers, perform a clean soft-delete (deactivate) so existing customers keep their integrity
+        // while the category is removed from active options and the category manager
+        await database.category.update({
+          where: { id },
+          data: { active: false },
+        });
+        return { id, name: category.name, deactivated: true };
       }
 
       await database.category.delete({
