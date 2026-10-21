@@ -10,8 +10,9 @@ export function createAdminInventoryRoutes(database: PrismaClient) {
   router.get("/", controller.getSummary);
   router.post("/warehouses", controller.createWarehouse);
   router.get("/warehouses", controller.listWarehouses);
+  router.delete("/warehouses/:id", controller.deleteWarehouse);
   router.post("/receipts", controller.addReceipt);
-  router.post("/transfers", controller.transfer);
+  router.post("/transfers", con troller.transfer);
   router.patch("/locations/:id/balance", controller.updateLocationBalance);
   router.get("/transactions", controller.listTransactions);
 

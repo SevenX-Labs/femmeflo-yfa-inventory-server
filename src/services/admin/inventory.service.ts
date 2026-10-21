@@ -164,6 +164,43 @@ export function createAdminInventoryService(database: PrismaClient) {
       });
     },
 
+    deleteWarehouse: async (id: string) => {
+      const location = await database.stockLocation.findUnique({
+        where: { id },
+      });
+      if (!location) {
+        throw new HttpError(404, "Warehouse not found");
+      }
+      if (location.type === "HQ") {
+        throw new HttpError(400, "Central HQ warehouse cannot be deleted");
+      }
+      if (location.type === "SELLER") {
+        throw new HttpError(400, "Field officer locations cannot be deleted from warehouse management");
+      }
+      if (location.balance > 0) {
+        throw new HttpError(
+          400,
+          `Cannot delete warehouse with active stock balance (${location.balance} packets). Reset stock to 0 or transfer it first.`
+        );
+      }
+
+      return database.$transaction(async (tx) => {
+        await tx.productBalance.deleteMany({
+          where: { stockLocationId: id },
+        });
+
+        await tx.stockMovement.deleteMany({
+          where: {
+            OR: [{ sourceId: id }, { destinationId: id }],
+          },
+        });
+
+        return tx.stockLocation.delete({
+          where: { id },
+        });
+      });
+    },
+
     addReceipt: async (actorId: string, input: CreateReceiptInput) => {
       const items = "items" in input
         ? input.items

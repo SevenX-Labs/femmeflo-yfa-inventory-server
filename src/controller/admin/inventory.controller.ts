@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import type { AdminInventoryService } from "../../services/admin/inventory.service.js";
 import type { PublicUser } from "../../services/auth/auth.types.js";
-import { parseInput } from "../../middleware/validation.js";
+import { parseInput, HttpError } from "../../middleware/validation.js";
 import { createWarehouseSchema, createReceiptSchema, createTransferSchema, listTransactionsSchema, updateLocationBalanceSchema } from "../inventory.validation.js";
 
 export function createAdminInventoryController(service: AdminInventoryService) {
@@ -38,6 +38,18 @@ export function createAdminInventoryController(service: AdminInventoryService) {
         success: true,
         message: "Warehouses retrieved",
         data: { items: warehouses, warehouses },
+      });
+    },
+
+    deleteWarehouse: async (request: Request, response: Response) => {
+      const id = String(request.params.id);
+      if (!id) {
+        throw new HttpError(400, "Warehouse ID is required");
+      }
+      await service.deleteWarehouse(id);
+      response.json({
+        success: true,
+        message: "Warehouse deleted successfully",
       });
     },
 
