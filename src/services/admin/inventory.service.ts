@@ -301,15 +301,99 @@ export function createAdminInventoryService(database: PrismaClient) {
           data: { balance: newBalance },
         });
 
+        const productBalances = await tx.productBalance.findMany({
+          where: { stockLocationId: location.id },
+          orderBy: { updatedAt: "desc" },
+        });
+
+        let movement = null;
+
         if (newBalance === 0) {
+          // Zero out all product balances at this location
           await tx.productBalance.updateMany({
             where: { stockLocationId: location.id },
             data: { balance: 0 },
           });
-        }
 
-        let movement = null;
-        if (diff > 0) {
+          // If HQ, adjust/remove recent receipts matching oldBalance so Total Received matches 0
+          if (location.type === "HQ") {
+            const recentReceipts = await tx.stockMovement.findMany({
+              where: { destinationId: location.id, type: "RECEIPT" },
+              orderBy: { createdAt: "desc" },
+            });
+            let toDeduct = Math.abs(diff);
+            for (const receipt of recentReceipts) {
+              if (toDeduct <= 0) break;
+              if (receipt.quantity <= toDeduct) {
+                toDeduct -= receipt.quantity;
+                await tx.stockMovement.delete({ where: { id: receipt.id } });
+              } else {
+                await tx.stockMovement.update({
+                  where: { id: receipt.id },
+                  data: { quantity: receipt.quantity - toDeduct },
+                });
+                toDeduct = 0;
+              }
+            }
+          }
+        } else if (diff < 0) {
+          // Deduct difference from product balances
+          let remDeduct = Math.abs(diff);
+          for (const pb of productBalances) {
+            if (remDeduct <= 0) break;
+            const deduct = Math.min(pb.balance, remDeduct);
+            if (deduct > 0) {
+              await tx.productBalance.update({
+                where: { id: pb.id },
+                data: { balance: pb.balance - deduct },
+              });
+              remDeduct -= deduct;
+            }
+          }
+
+          // If HQ, reduce recent receipts by the deducted amount so Total Received matches Available Stock + Sold
+          if (location.type === "HQ") {
+            const recentReceipts = await tx.stockMovement.findMany({
+              where: { destinationId: location.id, type: "RECEIPT" },
+              orderBy: { createdAt: "desc" },
+            });
+            let toDeduct = Math.abs(diff);
+            for (const receipt of recentReceipts) {
+              if (toDeduct <= 0) break;
+              if (receipt.quantity <= toDeduct) {
+                toDeduct -= receipt.quantity;
+                await tx.stockMovement.delete({ where: { id: receipt.id } });
+              } else {
+                await tx.stockMovement.update({
+                  where: { id: receipt.id },
+                  data: { quantity: receipt.quantity - toDeduct },
+                });
+                toDeduct = 0;
+              }
+            }
+          }
+        } else {
+          // diff > 0: Increment product balance
+          const targetPb = productBalances.find((p) => p.balance > 0) || productBalances[0];
+          let targetProductId: string | undefined = targetPb?.productId;
+
+          if (targetPb) {
+            await tx.productBalance.update({
+              where: { id: targetPb.id },
+              data: { balance: { increment: diff } },
+            });
+          } else {
+            const settings = await tx.businessSettings.findUnique({ where: { id: 1 } });
+            targetProductId = settings?.defaultProductId ?? undefined;
+            if (targetProductId) {
+              await tx.productBalance.upsert({
+                where: { productId_stockLocationId: { productId: targetProductId, stockLocationId: location.id } },
+                update: { balance: { increment: diff } },
+                create: { productId: targetProductId, stockLocationId: location.id, balance: diff },
+              });
+            }
+          }
+
           // Positive adjustment: recorded as RECEIPT into this location
           movement = await tx.stockMovement.create({
             data: {
@@ -317,13 +401,10 @@ export function createAdminInventoryService(database: PrismaClient) {
               quantity: diff,
               destinationId: location.id,
               actorId,
+              productId: targetProductId ?? null,
             },
           });
         }
-        // Note: For negative adjustments (diff < 0), StockMovement TRANSFER constraint
-        // strictly requires both sourceId and destinationId (sourceId <> destinationId).
-        // Since direct adjustment does not have a destination location, we directly update
-        // the location balance and product balances without creating an invalid transfer.
 
         return { location: updatedLocation, movement, diff, oldBalance, newBalance };
       });
