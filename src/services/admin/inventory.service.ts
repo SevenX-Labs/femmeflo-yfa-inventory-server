@@ -301,6 +301,13 @@ export function createAdminInventoryService(database: PrismaClient) {
           data: { balance: newBalance },
         });
 
+        if (newBalance === 0) {
+          await tx.productBalance.updateMany({
+            where: { stockLocationId: location.id },
+            data: { balance: 0 },
+          });
+        }
+
         let movement = null;
         if (diff > 0) {
           // Positive adjustment: recorded as RECEIPT into this location
@@ -312,17 +319,11 @@ export function createAdminInventoryService(database: PrismaClient) {
               actorId,
             },
           });
-        } else {
-          // Negative adjustment: quantity deducted
-          movement = await tx.stockMovement.create({
-            data: {
-              type: "TRANSFER",
-              quantity: Math.abs(diff),
-              sourceId: location.id,
-              actorId,
-            },
-          });
         }
+        // Note: For negative adjustments (diff < 0), StockMovement TRANSFER constraint
+        // strictly requires both sourceId and destinationId (sourceId <> destinationId).
+        // Since direct adjustment does not have a destination location, we directly update
+        // the location balance and product balances without creating an invalid transfer.
 
         return { location: updatedLocation, movement, diff, oldBalance, newBalance };
       });
