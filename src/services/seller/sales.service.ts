@@ -13,10 +13,22 @@ export function getPeriodDateRange(period?: "all" | "this_month" | "last_month")
 export function createSellerSalesService(database: PrismaClient) {
   async function resolveDefaultProductId(): Promise<string> {
     const settings = await database.businessSettings.findUnique({ where: { id: 1 } });
-    if (!settings?.defaultProductId) {
-      throw new HttpError(400, "No default product configured. Please run the multi-product migration.");
+    if (settings?.defaultProductId) {
+      const exists = await database.product.findUnique({ where: { id: settings.defaultProductId } });
+      if (exists) {
+        return exists.id;
+      }
     }
-    return settings.defaultProductId;
+    const activeProduct = await database.product.findFirst({ where: { active: true }, orderBy: { createdAt: "asc" } });
+    if (activeProduct) {
+      await database.businessSettings.upsert({
+        where: { id: 1 },
+        update: { defaultProductId: activeProduct.id },
+        create: { id: 1, minimumPricePaise: 2500, defaultProductId: activeProduct.id },
+      });
+      return activeProduct.id;
+    }
+    throw new HttpError(400, "No active product found in the system. Please ensure at least one product is created in Admin > Products.");
   }
 
   type NormalizedItem = { productId: string; quantity: number; unitPricePaise: number };
@@ -33,7 +45,7 @@ export function createSellerSalesService(database: PrismaClient) {
       items: [{ productId: defaultProductId, quantity: input.quantity, unitPricePaise: input.unitPricePaise }],
       paymentMode: input.paymentMode,
       requestKey: input.requestKey,
-    };
+    };  
   }
 
   return {

@@ -8,10 +8,25 @@ type CreateTransferInput = { sourceId: string; destinationId: string; quantity: 
 export function createAdminInventoryService(database: PrismaClient) {
   async function resolveDefaultProductItems(quantity: number) {
     const settings = await database.businessSettings.findUnique({ where: { id: 1 } });
-    if (!settings?.defaultProductId) {
-      throw new HttpError(400, "No default product configured. Please run the multi-product migration first.");
+    let defaultProductId = settings?.defaultProductId;
+    if (defaultProductId) {
+      const exists = await database.product.findUnique({ where: { id: defaultProductId } });
+      if (!exists) defaultProductId = null;
     }
-    return [{ productId: settings.defaultProductId, quantity }];
+    if (!defaultProductId) {
+      const activeProduct = await database.product.findFirst({ where: { active: true }, orderBy: { createdAt: "asc" } });
+      if (activeProduct) {
+        defaultProductId = activeProduct.id;
+        await database.businessSettings.upsert({
+          where: { id: 1 },
+          update: { defaultProductId },
+          create: { id: 1, minimumPricePaise: 2500, defaultProductId },
+        });
+      } else {
+        throw new HttpError(400, "No active product found in the system. Please ensure at least one product is created in Admin > Products.");
+      }
+    }
+    return [{ productId: defaultProductId, quantity }];
   }
 
   // Helper to ensure HQ exists
