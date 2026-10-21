@@ -67,51 +67,78 @@ export function createAdminIncentiveService(database: PrismaClient) {
       const now = new Date();
       const { currentYear, currentMonth, prevYear, prevMonth } = getCurrentAndPreviousPeriod(now);
 
-      const items = await Promise.all(
-        users.map(async (user) => {
-          const [sales, adjustments, payouts] = await Promise.all([
-            database.sale.findMany({
-              where: { sellerId: user.id, status: "CONFIRMED" },
+      const userIds = users.map((u) => u.id);
+
+      const [allSales, allAdjustments, allPayouts] = await Promise.all([
+        database.sale.findMany({
+          where: { sellerId: { in: userIds }, status: "CONFIRMED" },
+          select: {
+            id: true,
+            sellerId: true,
+            quantity: true,
+            incentiveRatePaise: true,
+            incentiveAmountPaise: true,
+            confirmedAt: true,
+            createdAt: true,
+          },
+        }),
+        database.incentiveAdjustment.findMany({
+          where: { userId: { in: userIds } },
+          select: {
+            id: true,
+            userId: true,
+            type: true,
+            amountPaise: true,
+            reason: true,
+            adjustmentDate: true,
+            createdAt: true,
+          },
+        }),
+        database.incentivePayout.findMany({
+          where: { userId: { in: userIds } },
+          select: {
+            id: true,
+            userId: true,
+            amountPaise: true,
+            paymentDate: true,
+            paymentMethod: true,
+            referenceId: true,
+            remarks: true,
+            createdAt: true,
+            allocations: {
               select: {
-                id: true,
-                quantity: true,
-                incentiveRatePaise: true,
-                incentiveAmountPaise: true,
-                confirmedAt: true,
-                createdAt: true,
-              },
-            }),
-            database.incentiveAdjustment.findMany({
-              where: { userId: user.id },
-              select: {
-                id: true,
-                type: true,
+                periodYear: true,
+                periodMonth: true,
                 amountPaise: true,
-                reason: true,
-                adjustmentDate: true,
-                createdAt: true,
               },
-            }),
-            database.incentivePayout.findMany({
-              where: { userId: user.id },
-              select: {
-                id: true,
-                amountPaise: true,
-                paymentDate: true,
-                paymentMethod: true,
-                referenceId: true,
-                remarks: true,
-                createdAt: true,
-                allocations: {
-                  select: {
-                    periodYear: true,
-                    periodMonth: true,
-                    amountPaise: true,
-                  },
-                },
-              },
-            }),
-          ]);
+            },
+          },
+        }),
+      ]);
+
+      const salesByUser = new Map<string, typeof allSales>();
+      for (const sale of allSales) {
+        let arr = salesByUser.get(sale.sellerId);
+        if (!arr) { arr = []; salesByUser.set(sale.sellerId, arr); }
+        arr.push(sale);
+      }
+      const adjustmentsByUser = new Map<string, typeof allAdjustments>();
+      for (const adj of allAdjustments) {
+        let arr = adjustmentsByUser.get(adj.userId);
+        if (!arr) { arr = []; adjustmentsByUser.set(adj.userId, arr); }
+        arr.push(adj);
+      }
+      const payoutsByUser = new Map<string, typeof allPayouts>();
+      for (const payout of allPayouts) {
+        let arr = payoutsByUser.get(payout.userId);
+        if (!arr) { arr = []; payoutsByUser.set(payout.userId, arr); }
+        arr.push(payout);
+      }
+
+      const items = users.map((user) => {
+          const sales = salesByUser.get(user.id) ?? [];
+          const adjustments = adjustmentsByUser.get(user.id) ?? [];
+          const payouts = payoutsByUser.get(user.id) ?? [];
 
           const summary = calculateUserIncentiveSummary(user.id, sales, adjustments, payouts, now);
           const territory = [user.village, user.district, user.state].filter(Boolean).join(", ") || "Unassigned";
@@ -151,8 +178,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
             olderPendingPaise: summary.olderPendingPaise,
             periods: summary.periods,
           };
-        }),
-      );
+        });
 
       // Filter by payment status if requested
       const filteredItems = query.status && query.status !== "ALL"

@@ -29,30 +29,29 @@ export function createAdminReportService(database: PrismaClient) {
         where.customer = customerWhere;
       }
 
-      // Summary calculations using DB aggregate query
-      const aggregate = await database.sale.aggregate({
-        where,
-        _count: { id: true },
-        _sum: { quantity: true, totalPaise: true },
-      });
+      const limit = query.format === "json" ? 500 : 5000;
+      const [aggregate, sales] = await Promise.all([
+        database.sale.aggregate({
+          where,
+          _count: { id: true },
+          _sum: { quantity: true, totalPaise: true },
+        }),
+        database.sale.findMany({
+          where,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+          include: {
+            customer: { select: { id: true, shopName: true, contactName: true, state: true, district: true, village: true } },
+            seller: { select: { id: true, name: true, phone: true, manager: { select: { id: true, name: true } } } },
+          },
+        }),
+      ]);
 
       const totalSalesCount = aggregate._count.id ?? 0;
       const totalQuantitySold = aggregate._sum.quantity ?? 0;
       const grossSalesPaise = aggregate._sum.totalPaise ?? 0;
       const grossSalesRupees = grossSalesPaise / 100;
       const averageOrderValueRupees = totalSalesCount > 0 ? grossSalesRupees / totalSalesCount : 0;
-
-      // Bounded items query
-      const limit = query.format === "json" ? 500 : 5000;
-      const sales = await database.sale.findMany({
-        where,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          customer: { select: { id: true, shopName: true, contactName: true, state: true, district: true, village: true } },
-          seller: { select: { id: true, name: true, phone: true, manager: { select: { id: true, name: true } } } },
-        },
-      });
 
       // Grouping if requested
       const groups: Record<string, { label: string; count: number; quantity: number; totalPaise: number }> = {};
@@ -125,11 +124,24 @@ export function createAdminReportService(database: PrismaClient) {
         movementWhere.OR = [{ sourceId: query.locationId }, { destinationId: query.locationId }];
       }
 
-      const movementSummary = await database.stockMovement.groupBy({
-        by: ["type"],
-        where: movementWhere,
-        _sum: { quantity: true },
-      });
+      const limit = query.format === "json" ? 500 : 5000;
+      const [movementSummary, movements] = await Promise.all([
+        database.stockMovement.groupBy({
+          by: ["type"],
+          where: movementWhere,
+          _sum: { quantity: true },
+        }),
+        database.stockMovement.findMany({
+          where: movementWhere,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+          include: {
+            source: { select: { id: true, name: true, type: true } },
+            destination: { select: { id: true, name: true, type: true } },
+            actor: { select: { id: true, name: true, role: true } },
+          },
+        }),
+      ]);
 
       let totalReceived = 0;
       let totalTransferred = 0;
@@ -140,19 +152,6 @@ export function createAdminReportService(database: PrismaClient) {
         if (item.type === "TRANSFER") totalTransferred = item._sum.quantity ?? 0;
         if (item.type === "SALE") totalSold = item._sum.quantity ?? 0;
       }
-
-      // Bounded movements query
-      const limit = query.format === "json" ? 500 : 5000;
-      const movements = await database.stockMovement.findMany({
-        where: movementWhere,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          source: { select: { id: true, name: true, type: true } },
-          destination: { select: { id: true, name: true, type: true } },
-          actor: { select: { id: true, name: true, role: true } },
-        },
-      });
 
       return {
         summary: {

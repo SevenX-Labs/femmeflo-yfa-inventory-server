@@ -19,19 +19,21 @@ export function createAdminApprovalService(database: PrismaClient) {
         };
       }
 
-      const total = await database.sale.count({ where });
+      const [total, items] = await Promise.all([
+        database.sale.count({ where }),
+        database.sale.findMany({
+          where,
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          include: {
+            customer: { select: { id: true, shopName: true, contactName: true, phone: true, state: true, district: true, village: true } },
+            seller: { select: { id: true, name: true, phone: true } },
+            lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
+          },
+        }),
+      ]);
       const totalPages = Math.ceil(total / query.pageSize);
-      const items = await database.sale.findMany({
-        where,
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        include: {
-          customer: { select: { id: true, shopName: true, contactName: true, phone: true, state: true, district: true, village: true } },
-          seller: { select: { id: true, name: true, phone: true } },
-          lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
-        },
-      });
 
       return {
         items,

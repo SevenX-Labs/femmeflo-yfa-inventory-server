@@ -18,7 +18,7 @@ export function createDatabase(databaseUrl: string) {
     connectionString,
     connectionTimeoutMillis: 30000,
     idleTimeoutMillis: 30000,
-    max: 10,
+    max: 20,
     ssl: isLocal ? undefined : { rejectUnauthorized: false },
   });
   return new PrismaClient({ adapter });

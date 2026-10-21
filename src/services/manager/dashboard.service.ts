@@ -11,30 +11,29 @@ export function createManagerDashboardService(database: PrismaClient) {
         ...(manager.district && { district: { equals: manager.district, mode: "insensitive" } }),
       };
 
-      const totalSellers = await database.user.count({ where: sellerScope });
-
       const customerScope: Prisma.CustomerWhereInput = {
         seller: sellerScope,
       };
-      const totalCustomers = await database.customer.count({ where: customerScope });
-
       const salesScope: Prisma.SaleWhereInput = {
         seller: sellerScope,
         status: "CONFIRMED",
       };
 
-      const salesAggregate = await database.sale.aggregate({
-        _sum: { quantity: true, totalPaise: true },
-        where: salesScope,
-      });
+      const [totalSellers, totalCustomers, salesAggregate, sellers] = await Promise.all([
+        database.user.count({ where: sellerScope }),
+        database.customer.count({ where: customerScope }),
+        database.sale.aggregate({
+          _sum: { quantity: true, totalPaise: true },
+          where: salesScope,
+        }),
+        database.user.findMany({
+          where: sellerScope,
+          include: { stockLocation: true },
+        }),
+      ]);
 
       const totalPacketsSold = salesAggregate._sum.quantity ?? 0;
       const totalEarningsPaise = salesAggregate._sum.totalPaise ?? 0;
-
-      const sellers = await database.user.findMany({
-        where: sellerScope,
-        include: { stockLocation: true },
-      });
 
       let totalRemainingStock = 0;
       for (const s of sellers) {

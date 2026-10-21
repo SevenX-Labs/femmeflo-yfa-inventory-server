@@ -145,6 +145,8 @@ model Customer {
   @@index([state, district, village])
   @@index([categoryId])
   @@index([pincode])
+  @@index([createdAt])
+  @@index([phone])
 }
 
 model Product {
@@ -215,6 +217,8 @@ model StockMovement {
   @@index([destinationId, createdAt])
   @@index([saleId])
   @@index([productId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model BusinessSettings {

@@ -22,38 +22,33 @@ export function createSellerInventoryService(database: PrismaClient) {
         });
       }
 
-      // Calculate cumulative assigned transfers and confirmed sales
-      const totalAssignedResult = await database.stockMovement.aggregate({
-        _sum: { quantity: true },
-        where: { destinationId: location.id, type: "TRANSFER" },
-      });
-
-      const totalSoldResult = await database.sale.aggregate({
-        _sum: { quantity: true },
-        where: { sellerId, status: "CONFIRMED" },
-      });
+      const [totalAssignedResult, totalSoldResult, productBalances, perProductAssigned, perProductSold] = await Promise.all([
+        database.stockMovement.aggregate({
+          _sum: { quantity: true },
+          where: { destinationId: location.id, type: "TRANSFER" },
+        }),
+        database.sale.aggregate({
+          _sum: { quantity: true },
+          where: { sellerId, status: "CONFIRMED" },
+        }),
+        database.productBalance.findMany({
+          where: { stockLocationId: location.id },
+          include: { product: { select: { id: true, name: true, sku: true } } },
+        }),
+        database.stockMovement.groupBy({
+          by: ["productId"],
+          _sum: { quantity: true },
+          where: { destinationId: location.id, type: "TRANSFER", productId: { not: null } },
+        }),
+        database.stockMovement.groupBy({
+          by: ["productId"],
+          _sum: { quantity: true },
+          where: { sourceId: location.id, type: "SALE", productId: { not: null } },
+        }),
+      ]);
 
       const totalAssigned = totalAssignedResult._sum.quantity ?? 0;
       const totalSold = totalSoldResult._sum.quantity ?? 0;
-
-      // Per-product balances
-      const productBalances = await database.productBalance.findMany({
-        where: { stockLocationId: location.id },
-        include: { product: { select: { id: true, name: true, sku: true } } },
-      });
-
-      // Per-product assigned (transfers in) and sold
-      const perProductAssigned = await database.stockMovement.groupBy({
-        by: ["productId"],
-        _sum: { quantity: true },
-        where: { destinationId: location.id, type: "TRANSFER", productId: { not: null } },
-      });
-
-      const perProductSold = await database.stockMovement.groupBy({
-        by: ["productId"],
-        _sum: { quantity: true },
-        where: { sourceId: location.id, type: "SALE", productId: { not: null } },
-      });
 
       const assignedMap = new Map(perProductAssigned.map((r) => [r.productId!, r._sum.quantity ?? 0]));
       const soldMap = new Map(perProductSold.map((r) => [r.productId!, r._sum.quantity ?? 0]));
@@ -92,18 +87,20 @@ export function createSellerInventoryService(database: PrismaClient) {
       };
       if (query.type) where.type = query.type;
 
-      const total = await database.stockMovement.count({ where });
+      const [total, items] = await Promise.all([
+        database.stockMovement.count({ where }),
+        database.stockMovement.findMany({
+          where,
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+          orderBy: { createdAt: "desc" },
+          include: {
+            source: { select: { id: true, name: true, type: true } },
+            destination: { select: { id: true, name: true, type: true } },
+          },
+        }),
+      ]);
       const totalPages = Math.ceil(total / query.pageSize);
-      const items = await database.stockMovement.findMany({
-        where,
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-        orderBy: { createdAt: "desc" },
-        include: {
-          source: { select: { id: true, name: true, type: true } },
-          destination: { select: { id: true, name: true, type: true } },
-        },
-      });
 
       return {
         items,

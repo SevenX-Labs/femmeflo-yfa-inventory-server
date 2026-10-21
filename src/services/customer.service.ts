@@ -218,18 +218,20 @@ export function createCustomerService(database: PrismaClient) {
         where.sellerId = query.sellerId;
       }
 
-      const total = await database.customer.count({ where });
+      const [total, items] = await Promise.all([
+        database.customer.count({ where }),
+        database.customer.findMany({
+          where,
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+          include: {
+            category: { select: { id: true, name: true } },
+            seller: { select: { id: true, name: true, phone: true } },
+          },
+        }),
+      ]);
       const totalPages = Math.ceil(total / query.pageSize);
-      const items = await database.customer.findMany({
-        where,
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-        include: {
-          category: { select: { id: true, name: true } },
-          seller: { select: { id: true, name: true, phone: true } },
-        },
-      });
 
       return {
         items: items.map(serializeCustomer),

@@ -17,27 +17,37 @@ export function createManagerInventoryService(database: PrismaClient) {
         orderBy: { name: "asc" },
       });
 
+      const locationIds = sellers.map((s) => s.stockLocation?.id).filter((id): id is string => !!id);
+      const sellerIds = sellers.map((s) => s.id);
+
+      const [assignedByLoc, soldBySeller] = await Promise.all([
+        locationIds.length > 0
+          ? database.stockMovement.groupBy({
+              by: ["destinationId"],
+              _sum: { quantity: true },
+              where: { destinationId: { in: locationIds }, type: "TRANSFER" },
+            })
+          : Promise.resolve([]),
+        sellerIds.length > 0
+          ? database.sale.groupBy({
+              by: ["sellerId"],
+              _sum: { quantity: true },
+              where: { sellerId: { in: sellerIds }, status: "CONFIRMED" },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      const assignedMap = new Map(assignedByLoc.map((g) => [g.destinationId, g._sum.quantity ?? 0]));
+      const soldMap = new Map(soldBySeller.map((g) => [g.sellerId, g._sum.quantity ?? 0]));
+
       let totalAssigned = 0;
       let totalSold = 0;
       let totalRemaining = 0;
 
-      const sellerItems = await Promise.all(
-        sellers.map(async (seller) => {
+      const sellerItems = sellers.map((seller) => {
           const locId = seller.stockLocation?.id;
-          const assignedResult = locId
-            ? await database.stockMovement.aggregate({
-                _sum: { quantity: true },
-                where: { destinationId: locId, type: "TRANSFER" },
-              })
-            : { _sum: { quantity: null } };
-
-          const soldResult = await database.sale.aggregate({
-            _sum: { quantity: true },
-            where: { sellerId: seller.id, status: "CONFIRMED" },
-          });
-
-          const assigned = assignedResult._sum.quantity ?? 0;
-          const sold = soldResult._sum.quantity ?? 0;
+          const assigned = locId ? (assignedMap.get(locId) ?? 0) : 0;
+          const sold = soldMap.get(seller.id) ?? 0;
           const remaining = seller.stockLocation?.balance ?? 0;
 
           totalAssigned += assigned;
@@ -57,8 +67,7 @@ export function createManagerInventoryService(database: PrismaClient) {
             sold,
             remaining,
           };
-        }),
-      );
+        });
 
       return {
         summary: {

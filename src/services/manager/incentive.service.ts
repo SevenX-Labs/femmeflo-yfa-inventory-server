@@ -106,51 +106,78 @@ export function createManagerIncentiveService(database: PrismaClient) {
         orderBy: { name: "asc" },
       });
 
-      const memberSummaries = await Promise.all(
-        teamSellers.map(async (seller) => {
-          const [sales, adjustments, payouts] = await Promise.all([
-            database.sale.findMany({
-              where: { sellerId: seller.id, status: "CONFIRMED" },
+      const teamSellerIds = teamSellers.map((s) => s.id);
+
+      const [teamSales, teamAdjustments, teamPayouts] = await Promise.all([
+        database.sale.findMany({
+          where: { sellerId: { in: teamSellerIds }, status: "CONFIRMED" },
+          select: {
+            id: true,
+            sellerId: true,
+            quantity: true,
+            incentiveRatePaise: true,
+            incentiveAmountPaise: true,
+            confirmedAt: true,
+            createdAt: true,
+          },
+        }),
+        database.incentiveAdjustment.findMany({
+          where: { userId: { in: teamSellerIds } },
+          select: {
+            id: true,
+            userId: true,
+            type: true,
+            amountPaise: true,
+            reason: true,
+            adjustmentDate: true,
+            createdAt: true,
+          },
+        }),
+        database.incentivePayout.findMany({
+          where: { userId: { in: teamSellerIds } },
+          select: {
+            id: true,
+            userId: true,
+            amountPaise: true,
+            paymentDate: true,
+            paymentMethod: true,
+            referenceId: true,
+            remarks: true,
+            createdAt: true,
+            allocations: {
               select: {
-                id: true,
-                quantity: true,
-                incentiveRatePaise: true,
-                incentiveAmountPaise: true,
-                confirmedAt: true,
-                createdAt: true,
-              },
-            }),
-            database.incentiveAdjustment.findMany({
-              where: { userId: seller.id },
-              select: {
-                id: true,
-                type: true,
+                periodYear: true,
+                periodMonth: true,
                 amountPaise: true,
-                reason: true,
-                adjustmentDate: true,
-                createdAt: true,
               },
-            }),
-            database.incentivePayout.findMany({
-              where: { userId: seller.id },
-              select: {
-                id: true,
-                amountPaise: true,
-                paymentDate: true,
-                paymentMethod: true,
-                referenceId: true,
-                remarks: true,
-                createdAt: true,
-                allocations: {
-                  select: {
-                    periodYear: true,
-                    periodMonth: true,
-                    amountPaise: true,
-                  },
-                },
-              },
-            }),
-          ]);
+            },
+          },
+        }),
+      ]);
+
+      const teamSalesByUser = new Map<string, typeof teamSales>();
+      for (const sale of teamSales) {
+        let arr = teamSalesByUser.get(sale.sellerId);
+        if (!arr) { arr = []; teamSalesByUser.set(sale.sellerId, arr); }
+        arr.push(sale);
+      }
+      const teamAdjByUser = new Map<string, typeof teamAdjustments>();
+      for (const adj of teamAdjustments) {
+        let arr = teamAdjByUser.get(adj.userId);
+        if (!arr) { arr = []; teamAdjByUser.set(adj.userId, arr); }
+        arr.push(adj);
+      }
+      const teamPayoutsByUser = new Map<string, typeof teamPayouts>();
+      for (const payout of teamPayouts) {
+        let arr = teamPayoutsByUser.get(payout.userId);
+        if (!arr) { arr = []; teamPayoutsByUser.set(payout.userId, arr); }
+        arr.push(payout);
+      }
+
+      const memberSummaries = teamSellers.map((seller) => {
+          const sales = teamSalesByUser.get(seller.id) ?? [];
+          const adjustments = teamAdjByUser.get(seller.id) ?? [];
+          const payouts = teamPayoutsByUser.get(seller.id) ?? [];
 
           const summary = calculateUserIncentiveSummary(seller.id, sales, adjustments, payouts, now);
           const territory = [seller.village, seller.district, seller.state].filter(Boolean).join(", ") || "Unassigned";
@@ -176,8 +203,7 @@ export function createManagerIncentiveService(database: PrismaClient) {
             previousMonth: summary.previousMonth,
             olderPendingPaise: summary.olderPendingPaise,
           };
-        })
-      );
+        });
 
       // Aggregate Team metrics
       let teamTotalPackets = 0;
