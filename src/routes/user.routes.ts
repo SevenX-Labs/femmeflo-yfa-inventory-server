@@ -28,6 +28,8 @@ import { createAdminInvoiceRoutes } from "./admin/invoice.routes.js";
 import { createAdminPermissionRoutes } from "./admin/permission.routes.js";
 import { createAdminReportRoutes } from "./admin/report.routes.js";
 import { createSellerProfileRoutes } from "./seller/profile.routes.js";
+import { createSellerShiftRoutes } from "./seller/shift.routes.js";
+import { createAdminShiftRoutes } from "./admin/shift.routes.js";
 import { createGeoRoutes } from "./geo.routes.js";
 import { createAdminProductRoutes } from "./admin/product.routes.js";
 import { createProductListRoutes } from "./product.routes.js";
@@ -146,6 +148,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   router.use("/admin/permissions", authenticate, requireRole("SUPER_ADMIN"), createAdminPermissionRoutes(database));
   router.use("/admin/reports", authenticate, requireRole("SUPER_ADMIN"), createAdminReportRoutes(database));
   router.use("/admin/products", authenticate, requireRole("SUPER_ADMIN"), createAdminProductRoutes(database));
+  router.use("/admin/shifts", authenticate, requireRole("SUPER_ADMIN"), createAdminShiftRoutes(database));
 
   // Manager routes
   router.use("/manager/products", authenticate, requireRole("MANAGER"), createProductListRoutes(database));
@@ -155,6 +158,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   router.use("/manager/sales", authenticate, requireRole("MANAGER"), createManagerSalesRoutes(database));
   router.use("/manager/dashboard", authenticate, requireRole("MANAGER"), createManagerDashboardRoutes(database));
   router.use("/manager/incentives", authenticate, requireRole("MANAGER"), createManagerIncentiveRoutes(database));
+  router.use("/manager/shifts", authenticate, requireRole("MANAGER"), createAdminShiftRoutes(database));
 
   // Seller routes
   router.use("/seller/products", authenticate, requireRole("SELLER", "MANAGER"), createProductListRoutes(database));
@@ -164,6 +168,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   router.use("/seller/incentives", authenticate, requireRole("SELLER", "MANAGER"), createSellerIncentiveRoutes(database));
   router.use("/seller/dashboard", authenticate, requireRole("SELLER", "MANAGER"), createSellerDashboardRoutes(database));
   router.use("/seller/profile", authenticate, requireRole("SELLER", "MANAGER"), createSellerProfileRoutes(database));
+  router.use("/seller/shifts", authenticate, requireRole("SELLER", "MANAGER"), createSellerShiftRoutes(database));
 
   return router;
 }

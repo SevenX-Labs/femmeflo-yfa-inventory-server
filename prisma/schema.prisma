@@ -42,6 +42,12 @@ enum SaleStatus {
   REJECTED
 }
 
+enum ShiftStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
 enum DeliveryChannel {
   EMAIL
   WHATSAPP
@@ -98,6 +104,7 @@ model User {
   adjustmentsCreated   IncentiveAdjustment[]  @relation("IncentiveAdjustmentCreator")
   incentivePayouts     IncentivePayout[]      @relation("UserIncentivePayouts")
   payoutsCreated       IncentivePayout[]      @relation("IncentivePayoutCreator")
+  shifts               Shift[]                @relation("SellerShifts")
 
   @@index([managerId])
   @@index([role, active])
@@ -140,6 +147,7 @@ model Customer {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   sales       Sale[]
+  shiftVisits ShiftVisit[]
 
   @@index([sellerId])
   @@index([state, district, village])
@@ -414,4 +422,44 @@ model IncentivePayoutAllocation {
 
   @@index([payoutId])
   @@index([periodYear, periodMonth])
+}
+
+model Shift {
+  id              String      @id @default(uuid()) @db.Uuid
+  sellerId        String      @db.Uuid
+  seller          User        @relation("SellerShifts", fields: [sellerId], references: [id], onDelete: Cascade)
+  startTime       DateTime    @default(now())
+  startLatitude   Float
+  startLongitude  Float
+  startAddress    String?
+  endTime         DateTime?
+  endLatitude     Float?
+  endLongitude    Float?
+  endAddress      String?
+  totalDistanceKm Float       @default(0)
+  status          ShiftStatus @default(ACTIVE)
+  notes           String?
+  visits          ShiftVisit[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([sellerId, startTime])
+  @@index([status])
+}
+
+model ShiftVisit {
+  id          String    @id @default(uuid()) @db.Uuid
+  shiftId     String    @db.Uuid
+  shift       Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  customerId  String?   @db.Uuid
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  shopName    String
+  latitude    Float
+  longitude   Float
+  checkInTime DateTime  @default(now())
+  notes       String?
+  createdAt   DateTime  @default(now())
+
+  @@index([shiftId])
+  @@index([customerId])
 }
