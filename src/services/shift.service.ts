@@ -106,7 +106,20 @@ export function createShiftService(database: PrismaClient) {
       if (query.from || query.to) {
         where.startTime = {};
         if (query.from) where.startTime.gte = query.from;
-        if (query.to) where.startTime.lte = query.to;
+        if (query.to) {
+          const toDate = new Date(query.to);
+          if (
+            toDate.getUTCHours() === 0 &&
+            toDate.getUTCMinutes() === 0 &&
+            toDate.getUTCSeconds() === 0 &&
+            toDate.getUTCMilliseconds() === 0
+          ) {
+            toDate.setUTCHours(23, 59, 59, 999);
+            where.startTime.lte = toDate;
+          } else {
+            where.startTime.lte = query.to;
+          }
+        }
       }
 
       const [total, items] = await Promise.all([
@@ -140,7 +153,20 @@ export function createShiftService(database: PrismaClient) {
       if (query.from || query.to) {
         where.startTime = {};
         if (query.from) where.startTime.gte = query.from;
-        if (query.to) where.startTime.lte = query.to;
+        if (query.to) {
+          const toDate = new Date(query.to);
+          if (
+            toDate.getUTCHours() === 0 &&
+            toDate.getUTCMinutes() === 0 &&
+            toDate.getUTCSeconds() === 0 &&
+            toDate.getUTCMilliseconds() === 0
+          ) {
+            toDate.setUTCHours(23, 59, 59, 999);
+            where.startTime.lte = toDate;
+          } else {
+            where.startTime.lte = query.to;
+          }
+        }
       }
       if (query.sellerId) {
         where.sellerId = query.sellerId;
