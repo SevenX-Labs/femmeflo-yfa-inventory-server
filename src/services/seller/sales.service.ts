@@ -216,7 +216,7 @@ export function createSellerSalesService(database: PrismaClient) {
           sellerId,
           customerId: normalized.customerId,
           quantity: totalQuantity,
-          unitPricePaise: lineItems.length === 1 ? lineItems[0]!.unitPricePaise : 0,
+          unitPricePaise: lineItems.length === 1 ? lineItems[0]!.unitPricePaise : (totalQuantity > 0 ? Math.round(grandTotalPaise / totalQuantity) : 0),
           totalPaise: grandTotalPaise,
           paymentMode: normalized.paymentMode,
           status: "CONFIRMED",
@@ -246,16 +246,16 @@ export function createSellerSalesService(database: PrismaClient) {
         });
 
         // Record per-product StockMovements
-        for (const item of lineItems) {
-          await tx.stockMovement.create({
-            data: {
-              type: "SALE",
+        if (lineItems.length > 0) {
+          await tx.stockMovement.createMany({
+            data: lineItems.map((item) => ({
+              type: "SALE" as const,
               quantity: item.quantity,
               sourceId: sellerLoc.id,
               actorId: sellerId,
               saleId: sale.id,
               productId: item.productId,
-            },
+            })),
           });
         }
 
@@ -318,9 +318,11 @@ export function createSellerSalesService(database: PrismaClient) {
         return { sale, invoice };
       }, { timeout: 30000, maxWait: 10000 });
 
-      const pdfPath = await processInvoicePdf(database, result.invoice.id).catch(() => null);
-      const invoice = pdfPath ? { ...result.invoice, pdfPath } : result.invoice;
-      return { ...result.sale, invoice };
+      // Process PDF in the background to avoid blocking the HTTP response and causing timeouts
+      processInvoicePdf(database, result.invoice.id).catch((err) => {
+        console.warn("Background PDF generation warning:", err);
+      });
+      return { ...result.sale, invoice: result.invoice };
     },
 
     list: async (sellerId: string, query: ListSalesInput) => {
