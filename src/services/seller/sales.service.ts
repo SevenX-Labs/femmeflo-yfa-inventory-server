@@ -119,7 +119,7 @@ export function createSellerSalesService(database: PrismaClient) {
           sellerId,
           customerId: normalized.customerId,
           quantity: totalQuantity,
-          unitPricePaise: 0,
+          unitPricePaise: lineItems.length === 1 ? lineItems[0]!.unitPricePaise : (totalQuantity > 0 ? Math.round(grandTotalPaise / totalQuantity) : 0),
           totalPaise: grandTotalPaise,
           paymentMode: normalized.paymentMode,
           status: "PENDING_APPROVAL",
