@@ -169,18 +169,15 @@ export function createAdminInventoryService(database: PrismaClient) {
         where: { id },
       });
       if (!location) {
-        throw new HttpError(404, "Warehouse not found");
+        throw new HttpError(404, "Stock location not found");
       }
       if (location.type === "HQ") {
         throw new HttpError(400, "Central HQ warehouse cannot be deleted");
       }
-      if (location.type === "SELLER") {
-        throw new HttpError(400, "Field officer locations cannot be deleted from warehouse management");
-      }
       if (location.balance > 0) {
         throw new HttpError(
           400,
-          `Cannot delete warehouse with active stock balance (${location.balance} packets). Reset stock to 0 or transfer it first.`
+          `Cannot delete location with active stock balance (${location.balance} packets). Reset stock to 0 or transfer it first.`
         );
       }
 
@@ -194,6 +191,17 @@ export function createAdminInventoryService(database: PrismaClient) {
             OR: [{ sourceId: id }, { destinationId: id }],
           },
         });
+
+        if (location.sellerId) {
+          const salesCount = await tx.sale.count({ where: { sellerId: location.sellerId } });
+          const customerCount = await tx.customer.count({ where: { sellerId: location.sellerId } });
+          if (salesCount === 0 && customerCount === 0) {
+            await tx.user.update({
+              where: { id: location.sellerId },
+              data: { active: false, isSeller: false },
+            });
+          }
+        }
 
         return tx.stockLocation.delete({
           where: { id },
