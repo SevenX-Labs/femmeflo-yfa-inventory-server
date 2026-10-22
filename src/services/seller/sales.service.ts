@@ -429,7 +429,7 @@ export function createSellerSalesService(database: PrismaClient) {
     update: async (sellerId: string, saleId: string, input: UpdateSaleInput) => {
       const sale = await database.sale.findUnique({
         where: { id: saleId },
-        include: { invoice: true, payments: true, customer: true },
+        include: { invoice: true, payments: true, customer: true, lineItems: { include: { product: true } } },
       });
 
       if (!sale || sale.sellerId !== sellerId) {
@@ -446,10 +446,6 @@ export function createSellerSalesService(database: PrismaClient) {
           403,
           "Field officers can only edit a sale within 48 hours of creation. Please contact your manager or admin to request modifications."
         );
-      }
-
-      if (sale.status === "REJECTED") {
-        throw new HttpError(409, "Cannot edit a rejected sale");
       }
 
       // If customer changed, verify new customer belongs to this seller
@@ -472,6 +468,8 @@ export function createSellerSalesService(database: PrismaClient) {
       const newPaymentMode = input.paymentMode ?? sale.paymentMode;
       const newTotalPaise = newQty * newUnitPricePaise;
 
+      const wasUnconfirmed = sale.status === "REJECTED" || sale.status === "PENDING_APPROVAL";
+
       return database.$transaction(async (tx) => {
         // If confirmed sale and quantity changed, adjust seller stock balance
         if (sale.status === "CONFIRMED") {
@@ -488,13 +486,11 @@ export function createSellerSalesService(database: PrismaClient) {
               );
             }
 
-            // Adjust seller location balance
             await tx.stockLocation.update({
               where: { id: sellerLoc.id },
               data: { balance: { decrement: qtyDiff } },
             });
 
-            // Adjust associated stock movement
             const movement = await tx.stockMovement.findFirst({ where: { saleId: sale.id } });
             if (movement) {
               await tx.stockMovement.update({
@@ -505,13 +501,224 @@ export function createSellerSalesService(database: PrismaClient) {
           }
         }
 
-        // Calculate updated incentive if quantity changed
+        // For REJECTED/PENDING_APPROVAL: re-check price and transition state
+        if (wasUnconfirmed) {
+          let isLowPrice = false;
+          if (sale.lineItems.length > 0) {
+            for (const li of sale.lineItems) {
+              const itemPrice = input.unitPricePaise ?? li.unitPricePaise;
+              if (itemPrice < li.product.minimumPricePaise) {
+                isLowPrice = true;
+                break;
+              }
+            }
+          } else {
+            const settings = await tx.businessSettings.findUnique({ where: { id: 1 } });
+            const defaultProduct = settings?.defaultProductId
+              ? await tx.product.findUnique({ where: { id: settings.defaultProductId } })
+              : null;
+            const minPrice = defaultProduct?.minimumPricePaise ?? settings?.minimumPricePaise ?? 0;
+            if (newUnitPricePaise < minPrice) {
+              isLowPrice = true;
+            }
+          }
+
+          if (isLowPrice) {
+            // Still below minimum: set/keep PENDING_APPROVAL
+            const updatedSale = await tx.sale.update({
+              where: { id: saleId },
+              data: {
+                customerId: targetCustomer.id,
+                quantity: newQty,
+                unitPricePaise: newUnitPricePaise,
+                totalPaise: newTotalPaise,
+                paymentMode: newPaymentMode,
+                status: "PENDING_APPROVAL",
+                rejectionReason: null,
+                decidedAt: null,
+                decidedById: null,
+              },
+              include: {
+                customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
+                seller: { select: { id: true, name: true, phone: true } },
+                invoice: { select: { id: true, number: true } },
+                lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
+              },
+            });
+
+            // Update line items if unitPricePaise changed
+            if (input.unitPricePaise !== undefined && sale.lineItems.length > 0) {
+              for (const li of sale.lineItems) {
+                await tx.saleLineItem.update({
+                  where: { id: li.id },
+                  data: {
+                    unitPricePaise: newUnitPricePaise,
+                    totalPaise: li.quantity * newUnitPricePaise,
+                  },
+                });
+              }
+            }
+
+            // Notify admins about re-submission
+            const seller = await tx.user.findUnique({ where: { id: sellerId } });
+            const admins = await tx.user.findMany({ where: { role: "SUPER_ADMIN", active: true } });
+            if (admins.length > 0) {
+              await tx.notification.createMany({
+                data: admins.map((admin) => ({
+                  recipientId: admin.id,
+                  saleId: sale.id,
+                  kind: "LOW_PRICE_APPROVAL_REQUEST" as const,
+                  message: `Re-submitted low-price sale from ${seller?.name ?? "Seller"}: ${newQty} × ₹${(newUnitPricePaise / 100).toFixed(2)}`,
+                })),
+              });
+            }
+
+            return updatedSale;
+          }
+
+          // Price is now above minimum: auto-confirm
+          const sellerLoc = await tx.stockLocation.findUnique({ where: { sellerId } });
+          if (!sellerLoc) {
+            throw new HttpError(404, "Stock location for seller not found");
+          }
+
+          // Check & deduct per-product stock
+          if (sale.lineItems.length > 0) {
+            for (const li of sale.lineItems) {
+              const itemQty = input.quantity ?? li.quantity;
+              const pb = await tx.productBalance.findUnique({
+                where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
+              });
+              if (!pb || pb.balance < itemQty) {
+                throw new HttpError(409, `Insufficient stock of ${li.product.name}. Available: ${pb?.balance ?? 0}, Requested: ${itemQty}`);
+              }
+              await tx.productBalance.update({
+                where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
+                data: { balance: { decrement: itemQty } },
+              });
+              await tx.stockMovement.create({
+                data: { type: "SALE", quantity: itemQty, sourceId: sellerLoc.id, actorId: sellerId, saleId: sale.id, productId: li.productId },
+              });
+            }
+            await tx.stockLocation.update({
+              where: { id: sellerLoc.id },
+              data: { balance: { decrement: newQty } },
+            });
+          } else {
+            if (sellerLoc.balance < newQty) {
+              throw new HttpError(409, `Insufficient stock. Available: ${sellerLoc.balance}, Requested: ${newQty}`);
+            }
+            await tx.stockLocation.update({
+              where: { id: sellerLoc.id },
+              data: { balance: { decrement: newQty } },
+            });
+            await tx.stockMovement.create({
+              data: { type: "SALE", quantity: newQty, sourceId: sellerLoc.id, actorId: sellerId, saleId: sale.id },
+            });
+          }
+
+          // Calculate incentive
+          let settings = await tx.businessSettings.findUnique({ where: { id: 1 } });
+          if (!settings) {
+            settings = await tx.businessSettings.create({
+              data: { id: 1, minimumPricePaise: 2500, incentiveRatePaise: null, companyName: "MASAKO ENTERPRISES PRIVATE LIMITED" },
+            });
+          }
+          const sellerUser = await tx.user.findUnique({ where: { id: sellerId }, select: { incentiveRatePaise: true, name: true, phone: true, email: true } });
+          const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise;
+          const incentiveAmountPaise = incentiveRatePaise != null ? newQty * incentiveRatePaise : null;
+
+          // Update line items if unitPricePaise changed
+          if (input.unitPricePaise !== undefined && sale.lineItems.length > 0) {
+            for (const li of sale.lineItems) {
+              await tx.saleLineItem.update({
+                where: { id: li.id },
+                data: {
+                  unitPricePaise: newUnitPricePaise,
+                  totalPaise: li.quantity * newUnitPricePaise,
+                },
+              });
+            }
+          }
+
+          // Generate invoice
+          const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          const snapshotLineItems = sale.lineItems.length > 0
+            ? sale.lineItems.map((li) => ({
+                productName: li.product.name,
+                productSku: li.product.sku,
+                quantity: input.quantity ?? li.quantity,
+                unitPricePaise: input.unitPricePaise ?? li.unitPricePaise,
+                totalPaise: (input.quantity ?? li.quantity) * (input.unitPricePaise ?? li.unitPricePaise),
+              }))
+            : undefined;
+
+          const invoiceSnapshot = {
+            invoiceNumber,
+            saleId: sale.id,
+            date: new Date().toISOString(),
+            company: {
+              name: settings.companyName || "MASAKO ENTERPRISES PRIVATE LIMITED",
+              gst: settings.companyGst, pan: settings.companyPan, address: settings.companyAddress,
+              phone: settings.companyPhone, email: settings.companyEmail, terms: settings.invoiceTerms,
+            },
+            customer: {
+              shopName: targetCustomer.shopName, contactName: targetCustomer.contactName,
+              phone: targetCustomer.phone, state: targetCustomer.state,
+              district: targetCustomer.district, village: targetCustomer.village,
+            },
+            seller: { name: sellerUser?.name ?? "", phone: sellerUser?.phone ?? "" },
+            quantity: newQty, unitPricePaise: newUnitPricePaise, totalPaise: newTotalPaise,
+            lineItems: snapshotLineItems, paymentMode: newPaymentMode,
+          };
+
+          const invoice = await tx.invoice.create({
+            data: { saleId: sale.id, number: invoiceNumber, snapshot: invoiceSnapshot as Prisma.InputJsonValue },
+          });
+
+          if (newPaymentMode === "CASH" || newPaymentMode === "BANK") {
+            await tx.paymentRecord.create({
+              data: { saleId: sale.id, collectorId: sellerId, mode: newPaymentMode, amountPaise: newTotalPaise },
+            });
+          }
+
+          const updatedSale = await tx.sale.update({
+            where: { id: saleId },
+            data: {
+              customerId: targetCustomer.id,
+              quantity: newQty,
+              unitPricePaise: newUnitPricePaise,
+              totalPaise: newTotalPaise,
+              paymentMode: newPaymentMode,
+              status: "CONFIRMED",
+              confirmedAt: new Date(),
+              rejectionReason: null,
+              decidedAt: null,
+              decidedById: null,
+              incentiveRatePaise: incentiveRatePaise ?? null,
+              incentiveAmountPaise: incentiveAmountPaise ?? null,
+            },
+            include: {
+              customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
+              seller: { select: { id: true, name: true, phone: true } },
+              invoice: { select: { id: true, number: true } },
+              lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
+            },
+          });
+
+          processInvoicePdf(database, invoice.id).catch((err) => {
+            console.warn("Background PDF generation warning:", err);
+          });
+
+          return updatedSale;
+        }
+
+        // CONFIRMED sale: existing update logic (no state change)
         let updatedIncentiveAmountPaise = sale.incentiveAmountPaise;
         if (sale.incentiveRatePaise !== null && sale.incentiveRatePaise !== undefined) {
           updatedIncentiveAmountPaise = newQty * sale.incentiveRatePaise;
         }
 
-        // Update sale record
         const updatedSale = await tx.sale.update({
           where: { id: saleId },
           data: {
@@ -526,22 +733,18 @@ export function createSellerSalesService(database: PrismaClient) {
             customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
             seller: { select: { id: true, name: true, phone: true } },
             invoice: { select: { id: true, number: true } },
+            lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
           },
         });
 
-        // Update payment record if exists and total changed or mode changed
         if (sale.payments && sale.payments.length > 0 && sale.payments[0]) {
           const firstPayment = sale.payments[0];
           await tx.paymentRecord.update({
             where: { id: firstPayment.id },
-            data: {
-              amountPaise: newTotalPaise,
-              mode: newPaymentMode,
-            },
+            data: { amountPaise: newTotalPaise, mode: newPaymentMode },
           });
         }
 
-        // Update invoice snapshot if invoice exists
         if (sale.invoice) {
           const existingSnapshot = (sale.invoice.snapshot as any) || {};
           const updatedSnapshot = {
@@ -560,9 +763,7 @@ export function createSellerSalesService(database: PrismaClient) {
 
           await tx.invoice.update({
             where: { id: sale.invoice.id },
-            data: {
-              snapshot: updatedSnapshot as Prisma.InputJsonValue,
-            },
+            data: { snapshot: updatedSnapshot as Prisma.InputJsonValue },
           });
         }
 
