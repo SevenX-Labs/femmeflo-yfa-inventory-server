@@ -5,6 +5,7 @@ import { parseInput } from "../../middleware/validation.js";
 import {
   startShiftSchema,
   checkInSchema,
+  checkOutSchema,
   endShiftSchema,
   listShiftsQuerySchema,
 } from "../shift.validation.js";
@@ -39,6 +40,17 @@ export function createSellerShiftController(service: ShiftService) {
       response.status(201).json({
         success: true,
         message: "Shop visit recorded",
+        data: { visit },
+      });
+    },
+
+    checkOut: async (request: Request, response: Response) => {
+      const user = response.locals.authUser as PublicUser;
+      const input = parseInput(checkOutSchema, request.body);
+      const visit = await service.checkOut(user.id, input);
+      response.json({
+        success: true,
+        message: `Checked out. Duration: ${visit.durationMins} mins`,
         data: { visit },
       });
     },

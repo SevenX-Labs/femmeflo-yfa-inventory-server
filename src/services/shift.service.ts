@@ -2,11 +2,44 @@ import type { PrismaClient, Prisma } from "../generated/prisma/client.js";
 import type {
   StartShiftInput,
   CheckInInput,
+  CheckOutInput,
   EndShiftInput,
   ListShiftsQuery,
 } from "../controller/shift.validation.js";
 import { HttpError } from "../middleware/validation.js";
 import { calculateRouteDistanceKm } from "../utils/distance.utils.js";
+
+type VisitWithTiming = {
+  checkInTime: Date;
+  checkOutTime: Date | null;
+  durationMins: number | null;
+};
+
+function enrichShiftWithTiming<T extends { startTime: Date; endTime: Date | null; visits: VisitWithTiming[] }>(
+  shift: T
+) {
+  const totalShiftMins = shift.endTime
+    ? Math.round((shift.endTime.getTime() - shift.startTime.getTime()) / 60000 * 100) / 100
+    : null;
+  const totalVisitMins = shift.visits.reduce(
+    (sum, v) => sum + (v.durationMins ?? 0),
+    0
+  );
+  const totalVisitMinsRounded = Math.round(totalVisitMins * 100) / 100;
+  const travelMins = totalShiftMins !== null
+    ? Math.round((totalShiftMins - totalVisitMinsRounded) * 100) / 100
+    : null;
+
+  return {
+    ...shift,
+    timing: {
+      totalShiftMins,
+      totalVisitMins: totalVisitMinsRounded,
+      travelMins,
+      visitCount: shift.visits.length,
+    },
+  };
+}
 
 export function createShiftService(database: PrismaClient) {
   return {
@@ -63,6 +96,40 @@ export function createShiftService(database: PrismaClient) {
       return visit;
     },
 
+    checkOut: async (sellerId: string, input: CheckOutInput) => {
+      const shift = await database.shift.findFirst({
+        where: { sellerId, status: "ACTIVE" },
+      });
+      if (!shift) {
+        throw new HttpError(400, "No active shift found");
+      }
+
+      const visit = await database.shiftVisit.findUnique({
+        where: { id: input.visitId },
+      });
+      if (!visit || visit.shiftId !== shift.id) {
+        throw new HttpError(404, "Visit not found in current shift");
+      }
+      if (visit.checkOutTime) {
+        throw new HttpError(400, "Already checked out from this shop");
+      }
+
+      const now = new Date();
+      const durationMins = Math.round(
+        (now.getTime() - visit.checkInTime.getTime()) / 60000 * 100
+      ) / 100;
+
+      return database.shiftVisit.update({
+        where: { id: input.visitId },
+        data: {
+          checkOutTime: now,
+          durationMins,
+          notes: input.notes ?? visit.notes,
+        },
+        include: { customer: { select: { id: true, shopName: true, phone: true } } },
+      });
+    },
+
     endShift: async (sellerId: string, input: EndShiftInput) => {
       const shift = await database.shift.findFirst({
         where: { sellerId, status: "ACTIVE" },
@@ -70,6 +137,22 @@ export function createShiftService(database: PrismaClient) {
       });
       if (!shift) {
         throw new HttpError(400, "No active shift found");
+      }
+
+      const now = new Date();
+      const uncheckedOut = shift.visits.filter((v) => !v.checkOutTime);
+      if (uncheckedOut.length > 0) {
+        await Promise.all(
+          uncheckedOut.map((v) => {
+            const durationMins = Math.round(
+              (now.getTime() - v.checkInTime.getTime()) / 60000 * 100
+            ) / 100;
+            return database.shiftVisit.update({
+              where: { id: v.id },
+              data: { checkOutTime: now, durationMins },
+            });
+          })
+        );
       }
 
       const routePoints = [
@@ -137,7 +220,7 @@ export function createShiftService(database: PrismaClient) {
 
       const totalPages = Math.ceil(total / query.pageSize);
       return {
-        items,
+        items: items.map(enrichShiftWithTiming),
         pagination: {
           page: query.page,
           pageSize: query.pageSize,
@@ -192,7 +275,7 @@ export function createShiftService(database: PrismaClient) {
 
       const totalPages = Math.ceil(total / query.pageSize);
       return {
-        items,
+        items: items.map(enrichShiftWithTiming),
         pagination: {
           page: query.page,
           pageSize: query.pageSize,
@@ -214,7 +297,7 @@ export function createShiftService(database: PrismaClient) {
         },
       });
       if (!shift) throw new HttpError(404, "Shift not found");
-      return shift;
+      return enrichShiftWithTiming(shift);
     },
   };
 }

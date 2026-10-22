@@ -10,6 +10,7 @@ export function createSellerShiftRoutes(database: PrismaClient) {
   router.post("/start", controller.start);
   router.get("/current", controller.current);
   router.post("/check-in", controller.checkIn);
+  router.post("/check-out", controller.checkOut);
   router.post("/end", controller.end);
   router.get("/history", controller.history);
 

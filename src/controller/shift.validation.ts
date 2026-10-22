@@ -14,6 +14,13 @@ export const checkInSchema = z.strictObject({
   notes: z.string().trim().max(1000).optional(),
 });
 
+export const checkOutSchema = z.strictObject({
+  visitId: z.string().uuid(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  notes: z.string().trim().max(1000).optional(),
+});
+
 export const endShiftSchema = z.strictObject({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
@@ -33,5 +40,6 @@ export const listShiftsQuerySchema = z.strictObject({
 
 export type StartShiftInput = z.infer<typeof startShiftSchema>;
 export type CheckInInput = z.infer<typeof checkInSchema>;
+export type CheckOutInput = z.infer<typeof checkOutSchema>;
 export type EndShiftInput = z.infer<typeof endShiftSchema>;
 export type ListShiftsQuery = z.infer<typeof listShiftsQuerySchema>;
