@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { parseInput } from "../middleware/validation.js";
 import { listProductsSchema } from "../controller/product.validation.js";
+import { conditionalHttpCache } from "../middleware/http-cache.middleware.js";
 
 type ProductItem = {
   id: string;
@@ -22,8 +23,9 @@ export function invalidateProductsCache() {
 
 export function createProductListRoutes(database: PrismaClient) {
   const router = Router();
+  const productCache = conditionalHttpCache({ maxAgeSeconds: 30, staleWhileRevalidateSeconds: 120 });
 
-  router.get("/", async (request, response) => {
+  router.get("/", productCache, async (request, response) => {
     const query = parseInput(listProductsSchema, request.query);
     const now = Date.now();
 

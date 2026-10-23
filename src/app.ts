@@ -2,10 +2,12 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import compression from "compression";
 import type { Router } from "express";
 import { errorHandler, notFound } from "./middleware/error.middleware.js";
 import { setupSwagger } from "./config/swagger.js";
 import { globalApiRateLimiter } from "./middleware/rate-limit.middleware.js";
+import { networkPerformanceLogger } from "./middleware/performance.middleware.js";
 
 type AppOptions = {
   corsOrigins: string[];
@@ -33,6 +35,24 @@ export function createApp({
   app.set("trust proxy", 1);
   app.use(helmet());
   app.use(cors({ origin: corsOrigins }));
+
+  // Compression: compress JSON/responses >= 1KB, skip already-compressed or SSE
+  app.use(
+    compression({
+      threshold: 1024,
+      level: 6,
+      filter: (req, res) => {
+        if (req.headers["x-no-compression"]) return false;
+        const contentType = res.getHeader("Content-Type") as string | undefined;
+        if (contentType && contentType.includes("text/event-stream")) return false;
+        return compression.filter(req, res);
+      },
+    })
+  );
+
+  // Performance telemetry & timing
+  app.use(networkPerformanceLogger);
+
   if (requestLogging) {
     // Avoid logging URLs/query strings that could contain password-reset tokens.
     app.use(morgan(":method :status :response-time ms"));

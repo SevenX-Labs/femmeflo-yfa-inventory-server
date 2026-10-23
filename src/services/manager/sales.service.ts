@@ -41,7 +41,15 @@ export function createManagerSalesService(database: PrismaClient) {
             customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
             seller: { select: { id: true, name: true, phone: true } },
             invoice: { select: { id: true, number: true } },
-            lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
+            lineItems: {
+              select: {
+                id: true,
+                productId: true,
+                quantity: true,
+                unitPricePaise: true,
+                product: { select: { id: true, name: true, sku: true } },
+              },
+            },
           },
         }),
       ]);

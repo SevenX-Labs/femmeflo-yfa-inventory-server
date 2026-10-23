@@ -446,6 +446,7 @@ model Shift {
   updatedAt       DateTime    @updatedAt
 
   @@index([sellerId, startTime])
+  @@index([startTime])
   @@index([status])
 }
 

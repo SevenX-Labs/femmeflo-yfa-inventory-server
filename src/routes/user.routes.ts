@@ -38,7 +38,13 @@ import { getCachedBusinessSettings } from "../services/settings.cache.js";
 
 export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   const router = Router();
-  router.use((_request, response, next) => { response.setHeader("Cache-Control", "no-store"); next(); });
+  // Default to no-store for mutation/stateful endpoints; GET routes can override with specific cache policies
+  router.use((request, response, next) => {
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      response.setHeader("Cache-Control", "no-store");
+    }
+    next();
+  });
   const authenticate = requireAuthentication(auth);
 
   // Invoices (Direct PDF streaming for Admin, Manager, and Seller)

@@ -40,7 +40,15 @@ export function createAdminReportService(database: PrismaClient) {
           where,
           take: limit,
           orderBy: { createdAt: "desc" },
-          include: {
+          select: {
+            id: true,
+            createdAt: true,
+            quantity: true,
+            unitPricePaise: true,
+            totalPaise: true,
+            paymentMode: true,
+            status: true,
+            sellerId: true,
             customer: { select: { id: true, shopName: true, contactName: true, state: true, district: true, village: true } },
             seller: { select: { id: true, name: true, phone: true, manager: { select: { id: true, name: true } } } },
           },

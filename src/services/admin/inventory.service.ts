@@ -69,7 +69,14 @@ export function createAdminInventoryService(database: PrismaClient) {
           select: { sourceId: true, destinationId: true, createdAt: true },
         }),
         database.productBalance.findMany({
-          include: { product: { select: { id: true, name: true, sku: true } }, stockLocation: { select: { id: true, type: true } } },
+          select: {
+            id: true,
+            productId: true,
+            stockLocationId: true,
+            balance: true,
+            product: { select: { id: true, name: true, sku: true } },
+            stockLocation: { select: { id: true, type: true } },
+          },
         }),
       ]);
 

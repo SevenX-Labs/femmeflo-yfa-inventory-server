@@ -37,7 +37,15 @@ export function createAdminSalesService(database: PrismaClient) {
             customer: { select: { id: true, shopName: true, contactName: true, phone: true, state: true, district: true, village: true } },
             seller: { select: { id: true, name: true, phone: true } },
             invoice: { select: { id: true, number: true } },
-            lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
+            lineItems: {
+              select: {
+                id: true,
+                productId: true,
+                quantity: true,
+                unitPricePaise: true,
+                product: { select: { id: true, name: true, sku: true } },
+              },
+            },
           },
         }),
       ]);
