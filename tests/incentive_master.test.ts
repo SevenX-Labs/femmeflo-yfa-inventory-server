@@ -54,6 +54,8 @@ test("Complete Master Incentive System Workflow (All 18 Scenarios)", async (t) =
   const rand = Math.floor(Math.random() * 8999999 + 1000000);
   const timestamp = `${Date.now()}_${rand}`;
 
+  await cleanupTestData(database);
+
   // Login as Super Admin
   const adminEmail = process.env["ADMIN_EMAIL"] ?? "admin@femmeflo.in";
   const adminPassword = process.env["ADMIN_PASSWORD"] ?? "femmeflo@2026";

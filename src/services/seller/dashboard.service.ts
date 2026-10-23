@@ -3,18 +3,8 @@ import type { PrismaClient } from "../../generated/prisma/client.js";
 export function createSellerDashboardService(database: PrismaClient) {
   return {
     getDashboard: async (sellerId: string) => {
-      let location = await database.stockLocation.findUnique({ where: { sellerId } });
-      if (!location) {
-        location = await database.stockLocation.create({
-          data: { type: "SELLER", name: "Seller Stock", sellerId, balance: 0 },
-        });
-      }
-
-      const [assignedResult, soldResult, recentSales] = await Promise.all([
-        database.stockMovement.aggregate({
-          _sum: { quantity: true },
-          where: { destinationId: location.id, type: "TRANSFER" },
-        }),
+      const [existingLocation, soldResult, recentSales] = await Promise.all([
+        database.stockLocation.findUnique({ where: { sellerId } }),
         database.sale.aggregate({
           _sum: { quantity: true, incentiveAmountPaise: true },
           where: { sellerId, status: "CONFIRMED" },
@@ -29,6 +19,15 @@ export function createSellerDashboardService(database: PrismaClient) {
           },
         }),
       ]);
+
+      const location = existingLocation ?? await database.stockLocation.create({
+        data: { type: "SELLER", name: "Seller Stock", sellerId, balance: 0 },
+      });
+
+      const assignedResult = await database.stockMovement.aggregate({
+        _sum: { quantity: true },
+        where: { destinationId: location.id, type: "TRANSFER" },
+      });
 
       const assignedPackets = assignedResult._sum.quantity ?? 0;
       const soldPackets = soldResult._sum.quantity ?? 0;

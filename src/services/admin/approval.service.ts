@@ -2,6 +2,7 @@ import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
 import type { ListSalesInput, RejectSaleInput } from "../../controller/sales.validation.js";
 import { HttpError } from "../../middleware/validation.js";
 import { processInvoicePdf } from "../pdf.service.js";
+import { getCachedBusinessSettings } from "../settings.cache.js";
 
 export function createAdminApprovalService(database: PrismaClient) {
   return {
@@ -65,22 +66,19 @@ export function createAdminApprovalService(database: PrismaClient) {
           throw new HttpError(409, `Sale has already been decided with status: ${sale.status}`);
         }
 
-        const sellerLoc = await tx.stockLocation.findUnique({ where: { sellerId: sale.sellerId } });
+        const [sellerLoc, sellerUser, settings] = await Promise.all([
+          tx.stockLocation.findUnique({ where: { sellerId: sale.sellerId } }),
+          tx.user.findUnique({
+            where: { id: sale.sellerId },
+            select: { incentiveRatePaise: true },
+          }),
+          getCachedBusinessSettings(database),
+        ]);
+
         if (!sellerLoc) {
           throw new HttpError(404, "Stock location for seller not found");
         }
 
-        let settings = await tx.businessSettings.findUnique({ where: { id: 1 } });
-        if (!settings) {
-          settings = await tx.businessSettings.create({
-            data: { id: 1, minimumPricePaise: 2500, incentiveRatePaise: null, companyName: "MASAKO ENTERPRISES PRIVATE LIMITED" },
-          });
-        }
-
-        const sellerUser = await tx.user.findUnique({
-          where: { id: sale.sellerId },
-          select: { incentiveRatePaise: true },
-        });
         const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise;
         const totalQuantity = sale.lineItems.length > 0
           ? sale.lineItems.reduce((sum, li) => sum + li.quantity, 0)
@@ -88,34 +86,41 @@ export function createAdminApprovalService(database: PrismaClient) {
         const incentiveAmountPaise = incentiveRatePaise !== null && incentiveRatePaise !== undefined ? totalQuantity * incentiveRatePaise : null;
 
         if (sale.lineItems.length > 0) {
-          // Multi-product: deduct per-product stock
-          for (const li of sale.lineItems) {
-            const pb = await tx.productBalance.findUnique({
-              where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
-            });
-            if (!pb || pb.balance < li.quantity) {
-              throw new HttpError(409, `Insufficient stock of ${li.product.name}. Available: ${pb?.balance ?? 0}, Requested: ${li.quantity}`);
-            }
-            await tx.productBalance.update({
-              where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
-              data: { balance: { decrement: li.quantity } },
-            });
+          const pIds = sale.lineItems.map((li) => li.productId);
+          const balances = await tx.productBalance.findMany({
+            where: { productId: { in: pIds }, stockLocationId: sellerLoc.id },
+          });
+          const balanceMap = new Map(balances.map((b) => [b.productId, b.balance]));
 
-            await tx.stockMovement.create({
-              data: {
+          for (const li of sale.lineItems) {
+            const available = balanceMap.get(li.productId) ?? 0;
+            if (available < li.quantity) {
+              throw new HttpError(409, `Insufficient stock of ${li.product.name}. Available: ${available}, Requested: ${li.quantity}`);
+            }
+          }
+
+          await Promise.all([
+            ...sale.lineItems.map((li) =>
+              tx.productBalance.update({
+                where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
+                data: { balance: { decrement: li.quantity } },
+              })
+            ),
+            tx.stockLocation.update({
+              where: { id: sellerLoc.id },
+              data: { balance: { decrement: totalQuantity } },
+            }),
+            tx.stockMovement.createMany({
+              data: sale.lineItems.map((li) => ({
                 type: "SALE",
                 quantity: li.quantity,
                 sourceId: sellerLoc.id,
                 actorId: sale.sellerId,
                 saleId: sale.id,
                 productId: li.productId,
-              },
-            });
-          }
-          await tx.stockLocation.update({
-            where: { id: sellerLoc.id },
-            data: { balance: { decrement: totalQuantity } },
-          });
+              })),
+            }),
+          ]);
         } else {
           // Legacy single-product sale
           if (sellerLoc.balance < sale.quantity) {

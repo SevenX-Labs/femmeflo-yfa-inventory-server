@@ -15,14 +15,11 @@ export async function bootstrapInitialAdmin(database: PrismaClient) {
   const adminEmail = (process.env.ADMIN_EMAIL || "admin@femmeflo.in").trim().toLowerCase();
   const adminName = process.env.ADMIN_NAME || "Super Admin";
 
-  const existingAdmin = await database.user.findFirst({
-    where: {
-      OR: [
-        { role: "SUPER_ADMIN" },
-        { email: adminEmail },
-      ],
-    },
-  });
+  const existingAdmin = (await database.user.findFirst({
+    where: { email: adminEmail },
+  })) || (await database.user.findFirst({
+    where: { role: "SUPER_ADMIN" },
+  }));
 
   if (existingAdmin) {
     // Admin exists in DB: PRESERVE DB passwordHash completely!

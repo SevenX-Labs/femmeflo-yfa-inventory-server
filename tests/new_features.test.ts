@@ -67,6 +67,8 @@ test("New Features End-to-End Integration Suite", async (t) => {
   let managerId = "";
   let sellerId = "";
 
+  await cleanupTestData(database);
+
   await t.test("Swagger OpenAPI documentation endpoint works", async () => {
     const res = await request("/docs.json");
     assert.equal(res.status, 200);

@@ -50,6 +50,8 @@ test("Sales Recording and Low-Price Approval Workflow", async (t) => {
   const rand = Math.floor(Math.random() * 8999999 + 1000000);
   const timestamp = `${Date.now()}_${rand}`;
 
+  await cleanupTestData(database);
+
   // 1. Admin login & bootstrap environment
   const adminRes = await auth.login(process.env["ADMIN_EMAIL"] ?? "admin@femmeflo.in", process.env["ADMIN_PASSWORD"] ?? "AdminPassword123!");
   const adminToken = adminRes.token;

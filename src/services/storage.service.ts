@@ -67,7 +67,7 @@ export function getStorageProvider(): StorageProvider {
  * - Quality 80% with lossless fallback if smaller
  * - Strips unnecessary EXIF metadata
  */
-export async function compressImageBuffer(inputBuffer: Buffer): Promise<{ buffer: Buffer; mimetype: string; extension: string }> {
+export async function compressImageBuffer(inputBuffer: Buffer, originalMime?: string): Promise<{ buffer: Buffer; mimetype: string; extension: string }> {
   try {
     const compressedBuffer = await sharp(inputBuffer)
       .rotate() // auto-orient based on EXIF before stripping
@@ -87,10 +87,12 @@ export async function compressImageBuffer(inputBuffer: Buffer): Promise<{ buffer
     };
   } catch (err) {
     // If sharp processing encounters an edge case, safely fall back to original buffer
+    const ext = originalMime === "image/png" ? "png" : originalMime === "image/webp" ? "webp" : "jpg";
+    const mime = originalMime || "image/jpeg";
     return {
       buffer: inputBuffer,
-      mimetype: "image/jpeg",
-      extension: "jpg",
+      mimetype: mime,
+      extension: ext,
     };
   }
 }
@@ -110,7 +112,7 @@ export async function uploadCustomerPhoto(
   }
 
   // Automatically compress and convert to WebP
-  const { buffer: processedBuffer, mimetype: targetMime, extension } = await compressImageBuffer(buffer);
+  const { buffer: processedBuffer, mimetype: targetMime, extension } = await compressImageBuffer(buffer, mimetype);
 
   const uniqueId = randomBytes(6).toString("hex");
   const fileName = `customers/${customerId}/${Date.now()}_${uniqueId}.${extension}`;

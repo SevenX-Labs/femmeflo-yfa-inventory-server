@@ -4,6 +4,7 @@ import type { PublicUser } from "../auth/auth.types.js";
 import { HttpError } from "../../middleware/validation.js";
 import { getPeriodDateRange } from "../seller/sales.service.js";
 import { processInvoicePdf } from "../pdf.service.js";
+import { getCachedBusinessSettings } from "../settings.cache.js";
 
 export function createManagerSalesService(database: PrismaClient) {
   return {
@@ -150,7 +151,7 @@ export function createManagerSalesService(database: PrismaClient) {
               }
             }
           } else {
-            const settings = await tx.businessSettings.findUnique({ where: { id: 1 } });
+            const settings = await getCachedBusinessSettings(tx);
             const defaultProduct = settings?.defaultProductId
               ? await tx.product.findUnique({ where: { id: settings.defaultProductId } })
               : null;
@@ -161,81 +162,112 @@ export function createManagerSalesService(database: PrismaClient) {
           }
 
           if (isLowPrice) {
-            const updatedSale = await tx.sale.update({
-              where: { id: saleId },
-              data: {
-                customerId: targetCustomer.id, quantity: newQty, unitPricePaise: newUnitPricePaise,
-                totalPaise: newTotalPaise, paymentMode: newPaymentMode,
-                status: "PENDING_APPROVAL", rejectionReason: null, decidedAt: null, decidedById: null,
-              },
-              include: {
-                customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
-                seller: { select: { id: true, name: true, phone: true } },
-                invoice: { select: { id: true, number: true } },
-                lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
-              },
-            });
-            if (input.unitPricePaise !== undefined && sale.lineItems.length > 0) {
-              for (const li of sale.lineItems) {
-                await tx.saleLineItem.update({
-                  where: { id: li.id },
-                  data: { unitPricePaise: newUnitPricePaise, totalPaise: li.quantity * newUnitPricePaise },
-                });
-              }
-            }
+            const [updatedSale] = await Promise.all([
+              tx.sale.update({
+                where: { id: saleId },
+                data: {
+                  customerId: targetCustomer.id, quantity: newQty, unitPricePaise: newUnitPricePaise,
+                  totalPaise: newTotalPaise, paymentMode: newPaymentMode,
+                  status: "PENDING_APPROVAL", rejectionReason: null, decidedAt: null, decidedById: null,
+                },
+                include: {
+                  customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
+                  seller: { select: { id: true, name: true, phone: true } },
+                  invoice: { select: { id: true, number: true } },
+                  lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
+                },
+              }),
+              input.unitPricePaise !== undefined && sale.lineItems.length > 0
+                ? Promise.all(
+                    sale.lineItems.map((li) =>
+                      tx.saleLineItem.update({
+                        where: { id: li.id },
+                        data: { unitPricePaise: newUnitPricePaise, totalPaise: li.quantity * newUnitPricePaise },
+                      })
+                    )
+                  )
+                : Promise.resolve(null),
+            ]);
             return { sale: updatedSale, newInvoiceId: null as string | null };
           }
 
           // Price now above minimum: auto-confirm
-          const sellerLoc = await tx.stockLocation.findUnique({ where: { sellerId: sale.sellerId } });
+          const [sellerLoc, settings] = await Promise.all([
+            tx.stockLocation.findUnique({ where: { sellerId: sale.sellerId } }),
+            getCachedBusinessSettings(tx),
+          ]);
           if (!sellerLoc) {
             throw new HttpError(404, "Stock location for seller not found");
           }
 
           if (sale.lineItems.length > 0) {
+            const productIds = sale.lineItems.map((li) => li.productId);
+            const balances = await tx.productBalance.findMany({
+              where: {
+                stockLocationId: sellerLoc.id,
+                productId: { in: productIds },
+              },
+            });
+            const balanceMap = new Map(balances.map((b) => [b.productId, b.balance]));
+
             for (const li of sale.lineItems) {
               const itemQty = input.quantity ?? li.quantity;
-              const pb = await tx.productBalance.findUnique({
-                where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
-              });
-              if (!pb || pb.balance < itemQty) {
-                throw new HttpError(409, `Insufficient stock of ${li.product.name}. Available: ${pb?.balance ?? 0}, Requested: ${itemQty}`);
+              const avail = balanceMap.get(li.productId) ?? 0;
+              if (avail < itemQty) {
+                throw new HttpError(409, `Insufficient stock of ${li.product.name}. Available: ${avail}, Requested: ${itemQty}`);
               }
-              await tx.productBalance.update({
-                where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
-                data: { balance: { decrement: itemQty } },
-              });
-              await tx.stockMovement.create({
-                data: { type: "SALE", quantity: itemQty, sourceId: sellerLoc.id, actorId: sale.sellerId, saleId: sale.id, productId: li.productId },
-              });
             }
-            await tx.stockLocation.update({ where: { id: sellerLoc.id }, data: { balance: { decrement: newQty } } });
+
+            await Promise.all([
+              ...sale.lineItems.map((li) => {
+                const itemQty = input.quantity ?? li.quantity;
+                return Promise.all([
+                  tx.productBalance.update({
+                    where: { productId_stockLocationId: { productId: li.productId, stockLocationId: sellerLoc.id } },
+                    data: { balance: { decrement: itemQty } },
+                  }),
+                  tx.stockMovement.create({
+                    data: { type: "SALE", quantity: itemQty, sourceId: sellerLoc.id, actorId: sale.sellerId, saleId: sale.id, productId: li.productId },
+                  }),
+                ]);
+              }),
+              tx.stockLocation.update({ where: { id: sellerLoc.id }, data: { balance: { decrement: newQty } } }),
+            ]);
           } else {
             if (sellerLoc.balance < newQty) {
               throw new HttpError(409, `Insufficient stock. Available: ${sellerLoc.balance}, Requested: ${newQty}`);
             }
-            await tx.stockLocation.update({ where: { id: sellerLoc.id }, data: { balance: { decrement: newQty } } });
-            await tx.stockMovement.create({
-              data: { type: "SALE", quantity: newQty, sourceId: sellerLoc.id, actorId: sale.sellerId, saleId: sale.id },
-            });
+            await Promise.all([
+              tx.stockLocation.update({ where: { id: sellerLoc.id }, data: { balance: { decrement: newQty } } }),
+              tx.stockMovement.create({
+                data: { type: "SALE", quantity: newQty, sourceId: sellerLoc.id, actorId: sale.sellerId, saleId: sale.id },
+              }),
+            ]);
           }
 
-          let settings = await tx.businessSettings.findUnique({ where: { id: 1 } });
-          if (!settings) {
-            settings = await tx.businessSettings.create({
-              data: { id: 1, minimumPricePaise: 2500, incentiveRatePaise: null, companyName: "MASAKO ENTERPRISES PRIVATE LIMITED" },
-            });
-          }
-          const incentiveRatePaise = sale.seller.incentiveRatePaise ?? settings.incentiveRatePaise;
+          const resolvedSettings = settings || {
+            minimumPricePaise: 2500,
+            incentiveRatePaise: null,
+            companyName: "MASAKO ENTERPRISES PRIVATE LIMITED",
+            companyGst: null,
+            companyPan: null,
+            companyAddress: null,
+            companyPhone: null,
+            companyEmail: null,
+            invoiceTerms: null,
+          };
+          const incentiveRatePaise = sale.seller.incentiveRatePaise ?? resolvedSettings.incentiveRatePaise;
           const incentiveAmountPaise = incentiveRatePaise != null ? newQty * incentiveRatePaise : null;
 
           if (input.unitPricePaise !== undefined && sale.lineItems.length > 0) {
-            for (const li of sale.lineItems) {
-              await tx.saleLineItem.update({
-                where: { id: li.id },
-                data: { unitPricePaise: newUnitPricePaise, totalPaise: li.quantity * newUnitPricePaise },
-              });
-            }
+            await Promise.all(
+              sale.lineItems.map((li) =>
+                tx.saleLineItem.update({
+                  where: { id: li.id },
+                  data: { unitPricePaise: newUnitPricePaise, totalPaise: li.quantity * newUnitPricePaise },
+                })
+              )
+            );
           }
 
           const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -251,9 +283,9 @@ export function createManagerSalesService(database: PrismaClient) {
           const invoiceSnapshot = {
             invoiceNumber, saleId: sale.id, date: new Date().toISOString(),
             company: {
-              name: settings.companyName || "MASAKO ENTERPRISES PRIVATE LIMITED",
-              gst: settings.companyGst, pan: settings.companyPan, address: settings.companyAddress,
-              phone: settings.companyPhone, email: settings.companyEmail, terms: settings.invoiceTerms,
+              name: resolvedSettings.companyName || "MASAKO ENTERPRISES PRIVATE LIMITED",
+              gst: resolvedSettings.companyGst, pan: resolvedSettings.companyPan, address: resolvedSettings.companyAddress,
+              phone: resolvedSettings.companyPhone, email: resolvedSettings.companyEmail, terms: resolvedSettings.invoiceTerms,
             },
             customer: {
               shopName: targetCustomer.shopName, contactName: targetCustomer.contactName,
@@ -265,32 +297,32 @@ export function createManagerSalesService(database: PrismaClient) {
             lineItems: snapshotLineItems, paymentMode: newPaymentMode,
           };
 
-          const invoice = await tx.invoice.create({
-            data: { saleId: sale.id, number: invoiceNumber, snapshot: invoiceSnapshot as Prisma.InputJsonValue },
-          });
-
-          if (newPaymentMode === "CASH" || newPaymentMode === "BANK") {
-            await tx.paymentRecord.create({
-              data: { saleId: sale.id, collectorId: sale.sellerId, mode: newPaymentMode, amountPaise: newTotalPaise },
-            });
-          }
-
-          const updatedSale = await tx.sale.update({
-            where: { id: saleId },
-            data: {
-              customerId: targetCustomer.id, quantity: newQty, unitPricePaise: newUnitPricePaise,
-              totalPaise: newTotalPaise, paymentMode: newPaymentMode,
-              status: "CONFIRMED", confirmedAt: new Date(),
-              rejectionReason: null, decidedAt: null, decidedById: null,
-              incentiveRatePaise: incentiveRatePaise ?? null, incentiveAmountPaise: incentiveAmountPaise ?? null,
-            },
-            include: {
-              customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
-              seller: { select: { id: true, name: true, phone: true } },
-              invoice: { select: { id: true, number: true } },
-              lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
-            },
-          });
+          const [invoice, , updatedSale] = await Promise.all([
+            tx.invoice.create({
+              data: { saleId: sale.id, number: invoiceNumber, snapshot: invoiceSnapshot as Prisma.InputJsonValue },
+            }),
+            (newPaymentMode === "CASH" || newPaymentMode === "BANK")
+              ? tx.paymentRecord.create({
+                  data: { saleId: sale.id, collectorId: sale.sellerId, mode: newPaymentMode, amountPaise: newTotalPaise },
+                })
+              : Promise.resolve(null),
+            tx.sale.update({
+              where: { id: saleId },
+              data: {
+                customerId: targetCustomer.id, quantity: newQty, unitPricePaise: newUnitPricePaise,
+                totalPaise: newTotalPaise, paymentMode: newPaymentMode,
+                status: "CONFIRMED", confirmedAt: new Date(),
+                rejectionReason: null, decidedAt: null, decidedById: null,
+                incentiveRatePaise: incentiveRatePaise ?? null, incentiveAmountPaise: incentiveAmountPaise ?? null,
+              },
+              include: {
+                customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
+                seller: { select: { id: true, name: true, phone: true } },
+                invoice: { select: { id: true, number: true } },
+                lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
+              },
+            }),
+          ]);
 
           return { sale: updatedSale, newInvoiceId: invoice.id as string | null };
         }
@@ -301,7 +333,7 @@ export function createManagerSalesService(database: PrismaClient) {
           updatedIncentiveAmountPaise = newQty * sale.incentiveRatePaise;
         }
 
-        const updatedSale = await tx.sale.update({
+        const updateSalePromise = tx.sale.update({
           where: { id: saleId },
           data: {
             customerId: targetCustomer.id,
@@ -319,14 +351,14 @@ export function createManagerSalesService(database: PrismaClient) {
           },
         });
 
-        if (sale.payments && sale.payments.length > 0 && sale.payments[0]) {
-          const firstPayment = sale.payments[0];
-          await tx.paymentRecord.update({
-            where: { id: firstPayment.id },
-            data: { amountPaise: newTotalPaise, mode: newPaymentMode },
-          });
-        }
+        const updatePaymentPromise = (sale.payments && sale.payments.length > 0 && sale.payments[0])
+          ? tx.paymentRecord.update({
+              where: { id: sale.payments[0].id },
+              data: { amountPaise: newTotalPaise, mode: newPaymentMode },
+            })
+          : Promise.resolve(null);
 
+        let updateInvoicePromise: Promise<any> = Promise.resolve(null);
         if (sale.invoice) {
           const existingSnapshot = (sale.invoice.snapshot as any) || {};
           const updatedSnapshot = {
@@ -338,12 +370,13 @@ export function createManagerSalesService(database: PrismaClient) {
               shopName: targetCustomer.shopName, contactName: targetCustomer.contactName, phone: targetCustomer.phone,
             },
           };
-          await tx.invoice.update({
+          updateInvoicePromise = tx.invoice.update({
             where: { id: sale.invoice.id },
             data: { snapshot: updatedSnapshot as Prisma.InputJsonValue },
           });
         }
 
+        const [updatedSale] = await Promise.all([updateSalePromise, updatePaymentPromise, updateInvoicePromise]);
         return { sale: updatedSale, newInvoiceId: null as string | null };
       }, { timeout: 30000, maxWait: 10000 });
 

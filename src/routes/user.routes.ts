@@ -34,6 +34,7 @@ import { createGeoRoutes } from "./geo.routes.js";
 import { createAdminProductRoutes } from "./admin/product.routes.js";
 import { createProductListRoutes } from "./product.routes.js";
 import { generateInvoicePdfBuffer, type InvoiceSnapshot } from "../services/pdf.service.js";
+import { getCachedBusinessSettings } from "../services/settings.cache.js";
 
 export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   const router = Router();
@@ -98,7 +99,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
       }
 
       // Real-time update: always overlay latest BusinessSettings configured in admin
-      const s = await database.businessSettings.findUnique({ where: { id: 1 } });
+      const s = await getCachedBusinessSettings(database);
       if (s) {
         snapshot = {
           ...snapshot,

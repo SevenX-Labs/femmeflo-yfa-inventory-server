@@ -13,16 +13,11 @@ import {
   getCurrentAndPreviousPeriod,
   type PeriodEarning,
 } from "../incentive/incentive.calculator.js";
+import { getCachedBusinessSettings, invalidateBusinessSettingsCache } from "../settings.cache.js";
 
 export function createAdminIncentiveService(database: PrismaClient) {
   async function getOrCreateSettings() {
-    let settings = await database.businessSettings.findUnique({ where: { id: 1 } });
-    if (!settings) {
-      settings = await database.businessSettings.create({
-        data: { id: 1, minimumPricePaise: 2500, incentiveRatePaise: null },
-      });
-    }
-    return settings;
+    return getCachedBusinessSettings(database);
   }
 
   return {
@@ -583,6 +578,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
       if (input.companyPan !== undefined) data["companyPan"] = input.companyPan;
       if (input.invoiceTerms !== undefined) data["invoiceTerms"] = input.invoiceTerms;
 
+      invalidateBusinessSettingsCache();
       return database.businessSettings.update({
         where: { id: 1 },
         data,

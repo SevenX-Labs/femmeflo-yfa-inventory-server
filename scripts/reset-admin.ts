@@ -14,12 +14,9 @@ async function main() {
     const passwordHash = await bcrypt.hash(password, 12);
 
     const existingAdmin = await db.user.findFirst({
-      where: {
-        OR: [
-          { role: "SUPER_ADMIN" },
-          { email },
-        ],
-      },
+      where: { email },
+    }) || await db.user.findFirst({
+      where: { role: "SUPER_ADMIN" },
     });
 
     let admin;

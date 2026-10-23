@@ -24,7 +24,7 @@
     "start": "node dist/server.js",
     "typecheck": "prisma generate && tsc -p tsconfig.check.json",
     "pretest": "prisma generate",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
     "test:integration": "prisma generate && tsx --test tests/integration/*.test.ts",
     "test:postman": "prisma generate && tsx scripts/test-postman.ts",
     "db:validate": "prisma validate",

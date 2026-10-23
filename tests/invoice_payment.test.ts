@@ -50,6 +50,8 @@ test("Invoice Listing and Payment Collection Flow", async (t) => {
   const rand = Math.floor(Math.random() * 8999999 + 1000000);
   const timestamp = `${Date.now()}_${rand}`;
 
+  await cleanupTestData(database);
+
   // Admin login & create seller
   const adminRes = await auth.login(process.env["ADMIN_EMAIL"] ?? "admin@femmeflo.in", process.env["ADMIN_PASSWORD"] ?? "AdminPassword123!");
   const adminToken = adminRes.token;

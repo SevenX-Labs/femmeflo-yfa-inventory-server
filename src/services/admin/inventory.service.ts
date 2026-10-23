@@ -1,13 +1,14 @@
 import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
 import type { CreateWarehouseInput, ListTransactionsInput, UpdateLocationBalanceInput } from "../../controller/inventory.validation.js";
 import { HttpError } from "../../middleware/validation.js";
+import { getCachedBusinessSettings, invalidateBusinessSettingsCache } from "../settings.cache.js";
 
 type CreateReceiptInput = { quantity: number } | { items: Array<{ productId: string; quantity: number }> };
 type CreateTransferInput = { sourceId: string; destinationId: string; quantity: number } | { sourceId: string; destinationId: string; items: Array<{ productId: string; quantity: number }> };
 
 export function createAdminInventoryService(database: PrismaClient) {
   async function resolveDefaultProductItems(quantity: number) {
-    const settings = await database.businessSettings.findUnique({ where: { id: 1 } });
+    const settings = await getCachedBusinessSettings(database);
     let defaultProductId = settings?.defaultProductId;
     if (defaultProductId) {
       const exists = await database.product.findUnique({ where: { id: defaultProductId } });
@@ -22,6 +23,7 @@ export function createAdminInventoryService(database: PrismaClient) {
           update: { defaultProductId },
           create: { id: 1, minimumPricePaise: 2500, defaultProductId },
         });
+        invalidateBusinessSettingsCache();
       } else {
         throw new HttpError(400, "No active product found in the system. Please ensure at least one product is created in Admin > Products.");
       }
@@ -42,8 +44,6 @@ export function createAdminInventoryService(database: PrismaClient) {
 
   return {
     getSummary: async () => {
-      const hq = await getOrCreateHQ();
-
       const [locations, movementSummary, inboundByLocation, outboundByLocation, recentMovements, productBalances] = await Promise.all([
         database.stockLocation.findMany({
           include: {
@@ -72,6 +72,13 @@ export function createAdminInventoryService(database: PrismaClient) {
           include: { product: { select: { id: true, name: true, sku: true } }, stockLocation: { select: { id: true, type: true } } },
         }),
       ]);
+
+      let hq = locations.find((l) => l.type === "HQ");
+      if (!hq) {
+        const hqLoc = await getOrCreateHQ();
+        hq = { ...hqLoc, seller: null };
+        locations.unshift(hq);
+      }
 
       const totalHqBalance = hq.balance;
       let totalWarehouseBalance = 0;
@@ -222,40 +229,52 @@ export function createAdminInventoryService(database: PrismaClient) {
         ? input.items
         : await resolveDefaultProductItems(input.quantity);
 
-      return database.$transaction(async (tx) => {
-        const hq = await getOrCreateHQ(tx);
-        const movements = [];
-        let totalQty = 0;
+      const productIds = items.map((i) => i.productId);
 
+      return database.$transaction(async (tx) => {
+        const [hq, products] = await Promise.all([
+          getOrCreateHQ(tx),
+          tx.product.findMany({ where: { id: { in: productIds } } }),
+        ]);
+
+        const productMap = new Map(products.filter((p) => p.active).map((p) => [p.id, p]));
         for (const item of items) {
-          const product = await tx.product.findUnique({ where: { id: item.productId } });
-          if (!product || !product.active) {
+          if (!productMap.has(item.productId)) {
             throw new HttpError(400, `Product not found or inactive: ${item.productId}`);
           }
-
-          await tx.productBalance.upsert({
-            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: hq.id } },
-            update: { balance: { increment: item.quantity } },
-            create: { productId: item.productId, stockLocationId: hq.id, balance: item.quantity },
-          });
-
-          const movement = await tx.stockMovement.create({
-            data: {
-              type: "RECEIPT",
-              quantity: item.quantity,
-              destinationId: hq.id,
-              actorId,
-              productId: item.productId,
-            },
-          });
-          movements.push(movement);
-          totalQty += item.quantity;
         }
 
-        const updatedHQ = await tx.stockLocation.update({
-          where: { id: hq.id },
-          data: { balance: { increment: totalQty } },
-        });
+        const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+
+        const [movements, updatedHQ] = await Promise.all([
+          Promise.all(
+            items.map((item) =>
+              tx.stockMovement.create({
+                data: {
+                  type: "RECEIPT",
+                  quantity: item.quantity,
+                  destinationId: hq.id,
+                  actorId,
+                  productId: item.productId,
+                },
+              })
+            )
+          ),
+          Promise.all(
+            items.map((item) =>
+              tx.productBalance.upsert({
+                where: { productId_stockLocationId: { productId: item.productId, stockLocationId: hq.id } },
+                update: { balance: { increment: item.quantity } },
+                create: { productId: item.productId, stockLocationId: hq.id, balance: item.quantity },
+              })
+            )
+          ).then(() =>
+            tx.stockLocation.update({
+              where: { id: hq.id },
+              data: { balance: { increment: totalQty } },
+            })
+          ),
+        ]);
 
         return { hq: updatedHQ, movements };
       });
@@ -270,65 +289,81 @@ export function createAdminInventoryService(database: PrismaClient) {
         ? input.items
         : await resolveDefaultProductItems(input.quantity);
 
+      const productIds = items.map((i) => i.productId);
+
       return database.$transaction(async (tx) => {
-        const source = await tx.stockLocation.findUnique({ where: { id: input.sourceId } });
-        const destination = await tx.stockLocation.findUnique({ where: { id: input.destinationId } });
+        const [source, destination, products, srcBalances] = await Promise.all([
+          tx.stockLocation.findUnique({ where: { id: input.sourceId } }),
+          tx.stockLocation.findUnique({ where: { id: input.destinationId } }),
+          tx.product.findMany({ where: { id: { in: productIds } } }),
+          tx.productBalance.findMany({
+            where: { productId: { in: productIds }, stockLocationId: input.sourceId },
+          }),
+        ]);
 
         if (!source || !destination) {
           throw new HttpError(404, "Source or destination stock location not found");
         }
 
-        const movements = [];
-        let totalQty = 0;
+        const productMap = new Map(products.filter((p) => p.active).map((p) => [p.id, p]));
+        const srcBalanceMap = new Map(srcBalances.map((b) => [b.productId, b.balance]));
 
         for (const item of items) {
-          const product = await tx.product.findUnique({ where: { id: item.productId } });
-          if (!product || !product.active) {
+          const product = productMap.get(item.productId);
+          if (!product) {
             throw new HttpError(400, `Product not found or inactive: ${item.productId}`);
           }
-
-          const srcBalance = await tx.productBalance.findUnique({
-            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: source.id } },
-          });
-
-          if (!srcBalance || srcBalance.balance < item.quantity) {
-            throw new HttpError(409, `Insufficient stock of ${product.name} at ${source.name}. Available: ${srcBalance?.balance ?? 0}, Requested: ${item.quantity}`);
+          const available = srcBalanceMap.get(item.productId) ?? 0;
+          if (available < item.quantity) {
+            throw new HttpError(409, `Insufficient stock of ${product.name} at ${source.name}. Available: ${available}, Requested: ${item.quantity}`);
           }
-
-          await tx.productBalance.update({
-            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: source.id } },
-            data: { balance: { decrement: item.quantity } },
-          });
-
-          await tx.productBalance.upsert({
-            where: { productId_stockLocationId: { productId: item.productId, stockLocationId: destination.id } },
-            update: { balance: { increment: item.quantity } },
-            create: { productId: item.productId, stockLocationId: destination.id, balance: item.quantity },
-          });
-
-          const movement = await tx.stockMovement.create({
-            data: {
-              type: "TRANSFER",
-              quantity: item.quantity,
-              sourceId: source.id,
-              destinationId: destination.id,
-              actorId,
-              productId: item.productId,
-            },
-          });
-          movements.push(movement);
-          totalQty += item.quantity;
         }
 
-        const updatedSource = await tx.stockLocation.update({
-          where: { id: source.id },
-          data: { balance: { decrement: totalQty } },
-        });
+        const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
 
-        const updatedDestination = await tx.stockLocation.update({
-          where: { id: destination.id },
-          data: { balance: { increment: totalQty } },
-        });
+        const [movements, updatedSource, updatedDestination] = await Promise.all([
+          Promise.all(
+            items.map((item) =>
+              tx.stockMovement.create({
+                data: {
+                  type: "TRANSFER",
+                  quantity: item.quantity,
+                  sourceId: source.id,
+                  destinationId: destination.id,
+                  actorId,
+                  productId: item.productId,
+                },
+              })
+            )
+          ),
+          Promise.all(
+            items.map((item) =>
+              tx.productBalance.update({
+                where: { productId_stockLocationId: { productId: item.productId, stockLocationId: source.id } },
+                data: { balance: { decrement: item.quantity } },
+              })
+            )
+          ).then(() =>
+            tx.stockLocation.update({
+              where: { id: source.id },
+              data: { balance: { decrement: totalQty } },
+            })
+          ),
+          Promise.all(
+            items.map((item) =>
+              tx.productBalance.upsert({
+                where: { productId_stockLocationId: { productId: item.productId, stockLocationId: destination.id } },
+                update: { balance: { increment: item.quantity } },
+                create: { productId: item.productId, stockLocationId: destination.id, balance: item.quantity },
+              })
+            )
+          ).then(() =>
+            tx.stockLocation.update({
+              where: { id: destination.id },
+              data: { balance: { increment: totalQty } },
+            })
+          ),
+        ]);
 
         return { source: updatedSource, destination: updatedDestination, movements };
       }, { timeout: 30000, maxWait: 10000 });

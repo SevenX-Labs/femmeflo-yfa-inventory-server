@@ -149,6 +149,8 @@ model Customer {
   sales       Sale[]
   shiftVisits ShiftVisit[]
 
+  @@index([sellerId, createdAt])
+  @@index([sellerId, active])
   @@index([sellerId])
   @@index([state, district, village])
   @@index([categoryId])

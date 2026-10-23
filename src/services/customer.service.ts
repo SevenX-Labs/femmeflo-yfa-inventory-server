@@ -25,17 +25,20 @@ function serializeCustomer<T extends { latitude?: unknown; longitude?: unknown }
 export function createCustomerService(database: PrismaClient) {
   return {
     create: async (user: UserContext, input: CreateCustomerInput) => {
-      // 1. Validate Category exists and is active
-      const category = await database.category.findUnique({ where: { id: input.categoryId } });
+      // 1. Parallel validation: Category, duplicate phone check, and optional seller check
+      const [category, existingCustomer, seller] = await Promise.all([
+        database.category.findUnique({ where: { id: input.categoryId } }),
+        database.customer.findFirst({
+          where: { phone: input.phone },
+          select: { id: true, shopName: true, phone: true },
+        }),
+        input.sellerId ? database.user.findUnique({ where: { id: input.sellerId } }) : null,
+      ]);
+
       if (!category || !category.active) {
         throw new HttpError(400, "Invalid or inactive category ID");
       }
 
-      // Check duplicate phone number
-      const existingCustomer = await database.customer.findFirst({
-        where: { phone: input.phone },
-        select: { id: true, shopName: true, phone: true },
-      });
       if (existingCustomer) {
         throw new HttpError(409, `A shopkeeper with this phone number (${input.phone}) already exists: ${existingCustomer.shopName}`);
       }
@@ -46,7 +49,6 @@ export function createCustomerService(database: PrismaClient) {
         assignedSellerId = user.id;
       } else if (input.sellerId) {
         // Verify seller exists and is active
-        const seller = await database.user.findUnique({ where: { id: input.sellerId } });
         if (!seller || (seller.role !== "SELLER" && !seller.isSeller) || !seller.active) {
           throw new HttpError(400, "Invalid or inactive seller ID");
         }
@@ -87,7 +89,8 @@ export function createCustomerService(database: PrismaClient) {
         (finalLat === undefined && finalLng === undefined) ||
         isGpsAccuracyPoor(input.accuracy);
 
-      if (needsGeocodeFallback) {
+      const hasApiKey = Boolean(process.env["GOOGLE_MAPS_API_KEY"] || process.env["NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"]);
+      if (needsGeocodeFallback && hasApiKey) {
         const addressQuery = buildAddressQuery({
           shopNumber: input.shopNumber,
           streetName: input.streetName,

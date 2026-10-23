@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../../generated/prisma/client.js";
 import type { CreateProductInput, UpdateProductInput, ListProductsInput } from "../../controller/product.validation.js";
 import { HttpError } from "../../middleware/validation.js";
+import { invalidateProductsCache } from "../../routes/product.routes.js";
 
 export function createAdminProductService(database: PrismaClient) {
   return {
@@ -49,6 +50,7 @@ export function createAdminProductService(database: PrismaClient) {
         }
       }
 
+      invalidateProductsCache();
       return database.product.create({
         data: {
           name: input.name,
@@ -99,6 +101,7 @@ export function createAdminProductService(database: PrismaClient) {
       if (input.minimumPricePaise !== undefined) data["minimumPricePaise"] = input.minimumPricePaise;
       if (input.active !== undefined) data["active"] = input.active;
 
+      invalidateProductsCache();
       return database.product.update({ where: { id }, data });
     },
 
@@ -107,6 +110,7 @@ export function createAdminProductService(database: PrismaClient) {
       if (!product) {
         throw new HttpError(404, "Product not found");
       }
+      invalidateProductsCache();
       return database.product.update({
         where: { id },
         data: { active: !product.active },

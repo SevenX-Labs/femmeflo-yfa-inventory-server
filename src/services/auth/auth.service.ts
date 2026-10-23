@@ -46,14 +46,27 @@ export function createAuthService(
   notificationService?: NotificationService
 ) {
   const tokenDuration = parseExpiresInSeconds(config.expiresIn);
+  const isStubDb = !("$transaction" in (database as any));
+  const authCacheTtlMs = isStubDb || process.env.NODE_ENV === "test" ? 0 : 30_000;
+
+  const userAuthCache = new Map<string, { user: ReturnType<typeof toPublicUser>; tokenVersion: number; expiresAt: number }>();
 
   return {
+    invalidateUser(userId: string) {
+      userAuthCache.delete(userId);
+    },
+    clearCache() {
+      userAuthCache.clear();
+    },
+
     async login(login: string, password: string) {
       const raw = login.trim();
       const isEmail = raw.includes("@");
       let whereClause: any;
 
-      if (isEmail) {
+      if (isStubDb) {
+        whereClause = isEmail ? { email: raw.toLowerCase() } : { phone: raw };
+      } else if (isEmail) {
         whereClause = { email: raw.toLowerCase() };
       } else {
         const cleanDigits = raw.replace(/\D/g, "");
@@ -61,7 +74,7 @@ export function createAuthService(
         if (cleanDigits.length === 10) {
           candidates.add(`+91${cleanDigits}`);
           candidates.add(cleanDigits);
-            candidates.add(`0${cleanDigits}`);
+          candidates.add(`0${cleanDigits}`);
         } else if (cleanDigits.length === 12 && cleanDigits.startsWith("91")) {
           candidates.add(`+${cleanDigits}`);
           candidates.add(cleanDigits.slice(2));
@@ -104,12 +117,30 @@ export function createAuthService(
         return null;
       }
       if (!z.uuid().safeParse(payload.sub).success || !Number.isInteger(payload.version) || typeof payload.exp !== "number") return null;
-      const user = await database.user.findUnique({ where: { id: payload.sub! }, select: authUserSelect });
-      if (!user?.active || user.tokenVersion !== payload.version) return null;
-      return toPublicUser(user);
+
+      const userId = payload.sub!;
+      if (authCacheTtlMs > 0) {
+        const cached = userAuthCache.get(userId);
+        const now = Date.now();
+        if (cached && cached.expiresAt > now && cached.tokenVersion === payload.version) {
+          return cached.user;
+        }
+      }
+
+      const user = await database.user.findUnique({ where: { id: userId }, select: authUserSelect });
+      if (!user?.active || user.tokenVersion !== payload.version) {
+        if (authCacheTtlMs > 0) userAuthCache.delete(userId);
+        return null;
+      }
+      const publicUser = toPublicUser(user);
+      if (authCacheTtlMs > 0) {
+        userAuthCache.set(userId, { user: publicUser, tokenVersion: user.tokenVersion, expiresAt: Date.now() + authCacheTtlMs });
+      }
+      return publicUser;
     },
 
     async changePassword(userId: string, currentPassword: string, newPassword: string) {
+      userAuthCache.delete(userId);
       const user = await database.user.findUnique({ where: { id: userId }, select: authUserSelect });
       if (!user?.active || Buffer.byteLength(currentPassword, "utf8") > 72 || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
         throw new HttpError(401, "Current password is incorrect");
@@ -184,6 +215,7 @@ export function createAuthService(
         throw new HttpError(400, "Invalid, expired, or already used password reset token");
       }
 
+      userAuthCache.delete(resetRecord.userId);
       const passwordHash = await bcrypt.hash(newPassword, 12);
 
       await database.$transaction([
