@@ -13,12 +13,14 @@ export const createSaleSchema = z.union([
     unitPricePaise: z.coerce.number().int().positive(),
     paymentMode: z.enum(["CASH", "BANK", "PENDING"]),
     requestKey: z.string().trim().max(100).optional(),
+    customerFeedback: z.string().trim().max(2000).optional(),
   }),
   z.strictObject({
     customerId: z.string().uuid(),
     items: z.array(saleLineItemSchema).min(1).max(50),
     paymentMode: z.enum(["CASH", "BANK", "PENDING"]),
     requestKey: z.string().trim().max(100).optional(),
+    customerFeedback: z.string().trim().max(2000).optional(),
   }),
 ]);
 
@@ -46,6 +48,7 @@ export const updateSaleSchema = z.strictObject({
   quantity: z.coerce.number().int().positive().optional(),
   unitPricePaise: z.coerce.number().int().positive().optional(),
   paymentMode: z.enum(["CASH", "BANK", "PENDING"]).optional(),
+  customerFeedback: z.string().trim().max(2000).optional(),
 });
 
 export type UpdateSaleInput = z.infer<typeof updateSaleSchema>;

@@ -264,6 +264,7 @@ model Sale {
   decidedById           String? @db.Uuid
   decidedBy             User? @relation("SaleDecider", fields: [decidedById], references: [id])
   rejectionReason       String?
+  customerFeedback      String?
   incentiveRatePaise    Int?
   incentiveAmountPaise  Int?
   requestKey            String? @unique

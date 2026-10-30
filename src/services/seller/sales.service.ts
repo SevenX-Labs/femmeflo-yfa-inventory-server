@@ -34,11 +34,11 @@ export function createSellerSalesService(database: PrismaClient) {
 
   type NormalizedItem = { productId: string; quantity: number; unitPricePaise: number };
 
-  type NormalizedResult = { customerId: string; items: NormalizedItem[]; paymentMode: "CASH" | "BANK" | "PENDING"; requestKey: string | undefined };
+  type NormalizedResult = { customerId: string; items: NormalizedItem[]; paymentMode: "CASH" | "BANK" | "PENDING"; requestKey: string | undefined; customerFeedback: string | undefined };
 
   async function normalizeInput(input: CreateSaleInput): Promise<NormalizedResult> {
     if ("items" in input) {
-      return { customerId: input.customerId, items: input.items, paymentMode: input.paymentMode, requestKey: input.requestKey };
+      return { customerId: input.customerId, items: input.items, paymentMode: input.paymentMode, requestKey: input.requestKey, customerFeedback: input.customerFeedback };
     }
     const defaultProductId = await resolveDefaultProductId();
     return {
@@ -46,6 +46,7 @@ export function createSellerSalesService(database: PrismaClient) {
       items: [{ productId: defaultProductId, quantity: input.quantity, unitPricePaise: input.unitPricePaise }],
       paymentMode: input.paymentMode,
       requestKey: input.requestKey,
+      customerFeedback: input.customerFeedback,
     };  
   }
 
@@ -121,6 +122,7 @@ export function createSellerSalesService(database: PrismaClient) {
           status: "PENDING_APPROVAL",
         };
         if (normalized.requestKey !== undefined) saleData["requestKey"] = normalized.requestKey;
+        if (normalized.customerFeedback !== undefined) saleData["customerFeedback"] = normalized.customerFeedback;
 
         const sale = await database.sale.create({
           data: saleData as Prisma.SaleCreateInput,
@@ -229,6 +231,7 @@ export function createSellerSalesService(database: PrismaClient) {
           incentiveAmountPaise: incentiveAmountPaise ?? null,
         };
         if (normalized.requestKey !== undefined) saleData["requestKey"] = normalized.requestKey;
+        if (normalized.customerFeedback !== undefined) saleData["customerFeedback"] = normalized.customerFeedback;
 
         const sale = await tx.sale.create({
           data: saleData as Prisma.SaleCreateInput,
@@ -471,6 +474,7 @@ export function createSellerSalesService(database: PrismaClient) {
       const newUnitPricePaise = input.unitPricePaise ?? sale.unitPricePaise;
       const newPaymentMode = input.paymentMode ?? sale.paymentMode;
       const newTotalPaise = newQty * newUnitPricePaise;
+      const newFeedback = input.customerFeedback !== undefined ? input.customerFeedback : sale.customerFeedback;
 
       const wasUnconfirmed = sale.status === "REJECTED" || sale.status === "PENDING_APPROVAL";
 
@@ -770,6 +774,7 @@ export function createSellerSalesService(database: PrismaClient) {
             unitPricePaise: newUnitPricePaise,
             totalPaise: newTotalPaise,
             paymentMode: newPaymentMode,
+            customerFeedback: newFeedback,
             incentiveAmountPaise: updatedIncentiveAmountPaise,
           },
           include: {
