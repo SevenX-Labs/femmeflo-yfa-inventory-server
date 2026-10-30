@@ -27,13 +27,7 @@
     "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
     "test:integration": "prisma generate && tsx --test tests/integration/*.test.ts",
     "test:postman": "prisma generate && tsx scripts/test-postman.ts",
-    "db:validate": "prisma validate",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate deploy",
-    "db:bootstrap-admin": "tsx prisma/seed.ts",
-    "admin:reset": "tsx scripts/reset-admin.ts",
     "docs:api": "node scripts/generate-api-docs.mjs",
-    "db:clean": "tsx scripts/clean-database.ts",
     "db:reset": "prisma migrate reset --force"
   },
   "dependencies": {
