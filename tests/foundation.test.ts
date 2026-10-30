@@ -99,6 +99,24 @@ test("CORS does not permit unlisted origins", async () => {
   assert.equal(response.headers.get("access-control-allow-origin"), null);
 });
 
+test("CORS permits mobile application origins and handles preflight", async () => {
+  for (const origin of ["capacitor://localhost", "ionic://localhost", "http://localhost"]) {
+    const res = await fetch(`${baseUrl}/api/v1/health`, { headers: { Origin: origin } });
+    assert.equal(res.headers.get("access-control-allow-origin"), origin);
+  }
+
+  const preflight = await fetch(`${baseUrl}/api/v1/health`, {
+    method: "OPTIONS",
+    headers: {
+      Origin: "capacitor://localhost",
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "Content-Type, Authorization",
+    },
+  });
+  assert.equal(preflight.headers.get("access-control-allow-origin"), "capacitor://localhost");
+  assert.equal(preflight.status, 204);
+});
+
 test("configuration supplies development defaults", () => {
   assert.deepEqual(loadEnvironment({}), {
     NODE_ENV: "development",

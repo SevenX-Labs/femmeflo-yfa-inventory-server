@@ -1,17 +1,19 @@
 import "dotenv/config";
 import { z } from "zod";
 
-const originSchema = z.string().url().refine((value) => {
+const originSchema = z.string().trim().refine((value) => {
+  // Mobile app URL schemes (Capacitor, Ionic) without trailing slashes
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/localhost(:\d+)?$/.test(value)) return true;
   if (!URL.canParse(value)) return false;
   const url = new URL(value);
   return ["http:", "https:"].includes(url.protocol) && url.origin === value;
-}, "Use an HTTP(S) origin without a path or trailing slash");
+}, "Use an HTTP(S) or mobile app scheme (e.g. capacitor://localhost) without a path or trailing slash");
 
 const environmentSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(5000),
   CORS_ORIGINS: z.string().default("http://localhost:3000")
-    .transform((value) => value.split(",").map((origin) => origin.trim()))
+    .transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean))
     .pipe(z.array(originSchema).min(1)),
   // Storage configuration
   SUPABASE_URL: z.string().trim().optional(),

@@ -34,7 +34,53 @@ export function createApp({
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
   app.use(helmet());
-  app.use(cors({ origin: corsOrigins }));
+
+  // Standard mobile app origins (Capacitor, Ionic, React Native Metro, Expo)
+  const defaultMobileOrigins = [
+    "capacitor://localhost",
+    "ionic://localhost",
+    "http://localhost",
+    "https://localhost",
+    "http://localhost:8081",
+    "http://localhost:19006",
+  ];
+
+  const allowedOriginsSet = new Set([...corsOrigins, ...defaultMobileOrigins]);
+  const isWildcard = corsOrigins.includes("*");
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // Allow requests with no origin (native mobile apps, curl, Postman, server-to-server) or "null" origin
+        if (!origin || origin === "null") {
+          return callback(null, true);
+        }
+        // Allow wildcard or explicit allowed origins
+        if (isWildcard || allowedOriginsSet.has(origin)) {
+          return callback(null, true);
+        }
+        return callback(null, false);
+      },
+      credentials: true,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+        "Range",
+        "x-no-compression",
+      ],
+      exposedHeaders: [
+        "Content-Length",
+        "Content-Range",
+        "Content-Disposition",
+        "Server-Timing",
+      ],
+      maxAge: 86400,
+    })
+  );
 
   // Compression: compress JSON/responses >= 1KB, skip already-compressed or SSE
   app.use(
