@@ -26,12 +26,16 @@ export class SupabaseStorageProvider implements StorageProvider {
       throw new HttpError(500, "Supabase storage is not configured (missing URL or API key)");
     }
 
-    const { data, error } = await client.storage
+    const uploadPromise = client.storage
       .from(bucket)
       .upload(path, buffer, {
         contentType,
         upsert: true,
       });
+    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) =>
+      setTimeout(() => reject(new HttpError(504, "Storage upload timed out after 20 seconds")), 20000)
+    );
+    const { data, error } = await Promise.race([uploadPromise, timeoutPromise]);
 
     if (error || !data) {
       throw new HttpError(500, `Storage upload failed: ${error?.message || "Unknown error"}`);

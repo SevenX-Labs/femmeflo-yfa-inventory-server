@@ -36,20 +36,36 @@ export function createCustomerController(service: CustomerService) {
 
       const customer = await service.create(user, input);
       if (file) {
-        const photoResult = await service.uploadPhoto(user, customer.id, file);
-        response.status(201).json({
-          success: true,
-          message: "Customer created with photo",
-          data: {
-            customer: photoResult.customer,
-            photoUrl: photoResult.photoUrl,
-            createdDate: photoResult.customer.createdDate,
-            createdTime: photoResult.customer.createdTime,
-            createdDateTime: photoResult.customer.createdDateTime,
-            createdAtIST: photoResult.customer.createdAtIST,
-          },
-        });
-        return;
+        try {
+          const photoResult = await service.uploadPhoto(user, customer.id, file);
+          response.status(201).json({
+            success: true,
+            message: "Customer created with photo",
+            data: {
+              customer: photoResult.customer,
+              photoUrl: photoResult.photoUrl,
+              createdDate: photoResult.customer.createdDate,
+              createdTime: photoResult.customer.createdTime,
+              createdDateTime: photoResult.customer.createdDateTime,
+              createdAtIST: photoResult.customer.createdAtIST,
+            },
+          });
+          return;
+        } catch (photoErr) {
+          console.error("Photo upload failed after customer creation:", photoErr);
+          response.status(201).json({
+            success: true,
+            message: "Customer created (photo upload delayed due to network)",
+            data: {
+              customer,
+              createdDate: customer.createdDate,
+              createdTime: customer.createdTime,
+              createdDateTime: customer.createdDateTime,
+              createdAtIST: customer.createdAtIST,
+            },
+          });
+          return;
+        }
       }
 
       response.status(201).json({

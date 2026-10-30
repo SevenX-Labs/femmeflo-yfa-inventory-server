@@ -5,7 +5,15 @@ const env = loadEnvironment();
 
 export const CUSTOMER_PHOTO_BUCKET = env.SUPABASE_CUSTOMER_BUCKET || "customer-photos";
 export const MAX_PHOTO_SIZE_BYTES = (env.MAX_PHOTO_SIZE_MB || 5) * 1024 * 1024;
-export const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+export const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/pjpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
 
 let supabaseStorageClient: SupabaseClient | null = null;
 
