@@ -4,6 +4,10 @@ export const startShiftSchema = z.strictObject({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   address: z.string().trim().max(500).optional(),
+  faceVerified: z.boolean().optional(),
+  facePhoto: z.string().optional(),
+  faceConfidence: z.number().optional(),
+  faceMethod: z.string().optional(),
 });
 
 export const checkInSchema = z.strictObject({
@@ -26,6 +30,10 @@ export const endShiftSchema = z.strictObject({
   longitude: z.number().min(-180).max(180),
   address: z.string().trim().max(500).optional(),
   notes: z.string().trim().max(1000).optional(),
+  faceVerified: z.boolean().optional(),
+  facePhoto: z.string().optional(),
+  faceConfidence: z.number().optional(),
+  faceMethod: z.string().optional(),
 });
 
 export const listShiftsQuerySchema = z.strictObject({

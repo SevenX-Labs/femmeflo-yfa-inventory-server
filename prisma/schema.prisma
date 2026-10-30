@@ -433,12 +433,16 @@ model Shift {
   seller          User        @relation("SellerShifts", fields: [sellerId], references: [id], onDelete: Cascade)
   startTime       DateTime    @default(now())
   startLatitude   Float
-  startLongitude  Float
-  startAddress    String?
-  endTime         DateTime?
-  endLatitude     Float?
-  endLongitude    Float?
-  endAddress      String?
+  startLongitude    Float
+  startAddress      String?
+  startFaceVerified Boolean?    @default(false)
+  startFacePhoto    String?
+  endTime           DateTime?
+  endLatitude       Float?
+  endLongitude      Float?
+  endAddress        String?
+  endFaceVerified   Boolean?    @default(false)
+  endFacePhoto      String?
   totalDistanceKm Float       @default(0)
   status          ShiftStatus @default(ACTIVE)
   notes           String?

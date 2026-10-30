@@ -56,6 +56,8 @@ export function createShiftService(database: PrismaClient) {
           startLatitude: input.latitude,
           startLongitude: input.longitude,
           startAddress: input.address ?? null,
+          startFaceVerified: input.faceVerified ?? true,
+          startFacePhoto: input.facePhoto ?? null,
         },
         include: { visits: true },
       });
@@ -170,6 +172,8 @@ export function createShiftService(database: PrismaClient) {
           endLatitude: input.latitude,
           endLongitude: input.longitude,
           endAddress: input.address ?? null,
+          endFaceVerified: input.faceVerified ?? true,
+          endFacePhoto: input.facePhoto ?? null,
           totalDistanceKm,
           status: "COMPLETED",
           notes: input.notes ?? null,
