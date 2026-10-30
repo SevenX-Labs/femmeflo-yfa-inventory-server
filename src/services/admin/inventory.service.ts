@@ -1,10 +1,7 @@
 import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
-import type { CreateWarehouseInput, ListTransactionsInput, UpdateLocationBalanceInput } from "../../controller/inventory.validation.js";
+import type { CreateWarehouseInput, ListTransactionsInput, UpdateLocationBalanceInput, CreateReceiptInput, CreateTransferInput } from "../../controller/inventory.validation.js";
 import { HttpError } from "../../middleware/validation.js";
 import { getCachedBusinessSettings, invalidateBusinessSettingsCache } from "../settings.cache.js";
-
-type CreateReceiptInput = { quantity: number } | { items: Array<{ productId: string; quantity: number }> };
-type CreateTransferInput = { sourceId: string; destinationId: string; quantity: number } | { sourceId: string; destinationId: string; items: Array<{ productId: string; quantity: number }> };
 
 export function createAdminInventoryService(database: PrismaClient) {
   async function resolveDefaultProductItems(quantity: number) {
@@ -232,6 +229,16 @@ export function createAdminInventoryService(database: PrismaClient) {
     },
 
     addReceipt: async (actorId: string, input: CreateReceiptInput) => {
+      if (input.requestKey) {
+        const existingMovement = await database.stockMovement.findUnique({
+          where: { requestKey: input.requestKey },
+        });
+        if (existingMovement) {
+          const hq = await database.stockLocation.findUnique({ where: { id: existingMovement.destinationId! } });
+          return { hq, movements: [existingMovement] };
+        }
+      }
+
       const items = "items" in input
         ? input.items
         : await resolveDefaultProductItems(input.quantity);
@@ -255,7 +262,7 @@ export function createAdminInventoryService(database: PrismaClient) {
 
         const [movements, updatedHQ] = await Promise.all([
           Promise.all(
-            items.map((item) =>
+            items.map((item, i) =>
               tx.stockMovement.create({
                 data: {
                   type: "RECEIPT",
@@ -263,6 +270,7 @@ export function createAdminInventoryService(database: PrismaClient) {
                   destinationId: hq.id,
                   actorId,
                   productId: item.productId,
+                  requestKey: input.requestKey ? (items.length > 1 ? `${input.requestKey}_${i}` : input.requestKey) : null,
                 },
               })
             )
@@ -290,6 +298,20 @@ export function createAdminInventoryService(database: PrismaClient) {
     transfer: async (actorId: string, input: CreateTransferInput) => {
       if (input.sourceId === input.destinationId) {
         throw new HttpError(400, "Source and destination cannot be the same location");
+      }
+
+      if (input.requestKey) {
+        const existingMovement = await database.stockMovement.findUnique({
+          where: { requestKey: input.requestKey },
+          include: { source: true, destination: true },
+        });
+        if (existingMovement) {
+          return {
+            source: existingMovement.source,
+            destination: existingMovement.destination,
+            movements: [existingMovement],
+          };
+        }
       }
 
       const items = "items" in input
@@ -330,7 +352,7 @@ export function createAdminInventoryService(database: PrismaClient) {
 
         const [movements, updatedSource, updatedDestination] = await Promise.all([
           Promise.all(
-            items.map((item) =>
+            items.map((item, i) =>
               tx.stockMovement.create({
                 data: {
                   type: "TRANSFER",
@@ -339,6 +361,7 @@ export function createAdminInventoryService(database: PrismaClient) {
                   destinationId: destination.id,
                   actorId,
                   productId: item.productId,
+                  requestKey: input.requestKey ? (items.length > 1 ? `${input.requestKey}_${i}` : input.requestKey) : null,
                 },
               })
             )

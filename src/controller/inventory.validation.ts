@@ -10,8 +10,14 @@ const receiptItemSchema = z.strictObject({
 });
 
 export const createReceiptSchema = z.union([
-  z.strictObject({ quantity: z.coerce.number().int().positive() }),
-  z.strictObject({ items: z.array(receiptItemSchema).min(1).max(50) }),
+  z.strictObject({
+    quantity: z.coerce.number().int().positive(),
+    requestKey: z.string().trim().max(100).optional(),
+  }),
+  z.strictObject({
+    items: z.array(receiptItemSchema).min(1).max(50),
+    requestKey: z.string().trim().max(100).optional(),
+  }),
 ]);
 
 const transferItemSchema = z.strictObject({
@@ -24,11 +30,13 @@ export const createTransferSchema = z.union([
     sourceId: z.string().uuid(),
     destinationId: z.string().uuid(),
     quantity: z.coerce.number().int().positive(),
+    requestKey: z.string().trim().max(100).optional(),
   }),
   z.strictObject({
     sourceId: z.string().uuid(),
     destinationId: z.string().uuid(),
     items: z.array(transferItemSchema).min(1).max(50),
+    requestKey: z.string().trim().max(100).optional(),
   }),
 ]);
 
