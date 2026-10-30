@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
-import type { CreateCustomerInput, ListCustomersInput, UpdateCustomerInput } from "../controller/customer.validation.js";
+  import type { CreateBulkCustomersInput, CreateCustomerInput, ListCustomersInput, UpdateCustomerInput } from "../controller/customer.validation.js";
 import { HttpError } from "../middleware/validation.js";
 import { uploadCustomerPhoto } from "./storage.service.js";
 import { forwardGeocode, isGpsAccuracyPoor, buildAddressQuery } from "./geocoding.service.js";
@@ -224,6 +224,147 @@ export function createCustomerService(database: PrismaClient) {
         pincode: input.pincode,
         address: fullAddress || `${customer.village}, ${customer.district}, ${customer.state}`,
       });
+    },
+
+    createBulk: async (user: UserContext, input: CreateBulkCustomersInput) => {
+      if (!input.customers || input.customers.length === 0) {
+        throw new HttpError(400, "At least one customer is required");
+      }
+
+      // 1. Check duplicate phones within the batch itself
+      const phones = input.customers.map((c) => c.phone);
+      const duplicates = phones.filter((p, idx) => phones.indexOf(p) !== idx);
+      if (duplicates.length > 0) {
+        const dupList = Array.from(new Set(duplicates)).join(", ");
+        throw new HttpError(400, `Duplicate phone numbers found within this batch: ${dupList}`);
+      }
+
+      // 2. Check if any phone already exists in DB
+      const existingCustomers = await database.customer.findMany({
+        where: { phone: { in: phones } },
+        select: { phone: true, shopName: true },
+      });
+      if (existingCustomers.length > 0) {
+        const conflictMsg = existingCustomers
+          .map((c) => `"${c.shopName}" (${c.phone})`)
+          .join(", ");
+        throw new HttpError(409, `The following phone numbers are already registered in the database: ${conflictMsg}`);
+      }
+
+      // 3. Resolve seller ID
+      let defaultAssignedSellerId: string;
+      if (user.role === "SELLER" || (user.role === "MANAGER" && user.isSeller && (!input.defaultSellerId || input.defaultSellerId === user.id))) {
+        defaultAssignedSellerId = user.id;
+      } else if (input.defaultSellerId) {
+        const seller = await database.user.findUnique({ where: { id: input.defaultSellerId } });
+        if (!seller || (seller.role !== "SELLER" && !seller.isSeller) || !seller.active) {
+          throw new HttpError(400, "Invalid or inactive default seller ID");
+        }
+        if (user.role === "MANAGER" && seller.managerId !== user.id && seller.id !== user.id) {
+          throw new HttpError(403, "Seller is not assigned to you");
+        }
+        defaultAssignedSellerId = input.defaultSellerId;
+      } else if (user.role === "MANAGER") {
+        defaultAssignedSellerId = user.id;
+      } else {
+        if (!input.defaultSellerId && input.customers.some((c) => !c.sellerId)) {
+          throw new HttpError(400, "defaultSellerId is required for Super Admin bulk onboarding when rows lack sellerId");
+        }
+        defaultAssignedSellerId = input.defaultSellerId || user.id;
+      }
+
+      // 4. Resolve Category IDs
+      const allCategoryIds = Array.from(
+        new Set(
+          input.customers
+            .map((c) => c.categoryId || input.defaultCategoryId)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+
+      if (allCategoryIds.length === 0) {
+        throw new HttpError(400, "Category is required. Provide defaultCategoryId or categoryId on each customer.");
+      }
+
+      const validCategories = await database.category.findMany({
+        where: { id: { in: allCategoryIds }, active: true },
+        select: { id: true, name: true },
+      });
+      const validCategoryMap = new Map(validCategories.map((c) => [c.id, c.name]));
+      for (const catId of allCategoryIds) {
+        if (!validCategoryMap.has(catId)) {
+          throw new HttpError(400, `Invalid or inactive category ID: ${catId}`);
+        }
+      }
+
+      // 5. Build records for database creation
+      const now = new Date();
+      const recordsToCreate = input.customers.map((c, idx) => {
+        const catId = c.categoryId || input.defaultCategoryId;
+        if (!catId) {
+          throw new HttpError(400, `Row ${idx + 1} (${c.shopName}): Category is required`);
+        }
+
+        const state = c.state || input.defaultState || user.state || "Maharashtra";
+        const district = c.district || input.defaultDistrict || user.district || "";
+        const village = c.village || input.defaultVillage || user.village || "";
+        if (!district || !village) {
+          throw new HttpError(400, `Row ${idx + 1} (${c.shopName}): District and Village/Town are required`);
+        }
+
+        const sellerId = c.sellerId || defaultAssignedSellerId;
+        const computedAddress =
+          c.address ||
+          [c.shopNumber, c.streetName, village, district, state, c.pincode].filter(Boolean).join(", ") ||
+          `${village}, ${district}, ${state}`;
+
+        const data: Record<string, unknown> = {
+          shopName: c.shopName,
+          contactName: c.contactName,
+          phone: c.phone,
+          categoryId: catId,
+          sellerId: sellerId,
+          createdById: user.id,
+          shopNumber: c.shopNumber || null,
+          streetName: c.streetName || null,
+          pincode: c.pincode || null,
+          address: computedAddress,
+          state: state,
+          district: district,
+          village: village,
+          noPhotoReason: c.noPhotoReason || input.defaultNoPhotoReason || "Bulk onboarding batch",
+          createdAt: c.createdAt ? new Date(c.createdAt) : now,
+        };
+
+        if (c.email) data["email"] = c.email;
+        if (c.photoPath) data["photoPath"] = c.photoPath;
+        if (c.latitude !== undefined && c.latitude !== null && !isNaN(Number(c.latitude))) {
+          data["latitude"] = new Prisma.Decimal(Number(c.latitude));
+        }
+        if (c.longitude !== undefined && c.longitude !== null && !isNaN(Number(c.longitude))) {
+          data["longitude"] = new Prisma.Decimal(Number(c.longitude));
+        }
+
+        return data as Prisma.CustomerCreateInput;
+      });
+
+      // 6. Execute atomic batch creation in a single transaction
+      const createdCustomers = await database.$transaction(
+        recordsToCreate.map((data) =>
+          database.customer.create({
+            data,
+            include: {
+              category: { select: { id: true, name: true } },
+              seller: { select: { id: true, name: true, phone: true } },
+            },
+          })
+        )
+      );
+
+      return {
+        count: createdCustomers.length,
+        customers: createdCustomers.map((c) => serializeCustomer(c)),
+      };
     },
 
     lookupPincode: async (pincode: string) => {

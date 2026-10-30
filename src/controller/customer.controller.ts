@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import type { CustomerService } from "../services/customer.service.js";
 import type { PublicUser } from "../services/auth/auth.types.js";
 import { parseInput, idSchema, HttpError } from "../middleware/validation.js";
-import { createCustomerSchema, listCustomersSchema, updateCustomerSchema } from "./customer.validation.js";
+import { createCustomerSchema, createBulkCustomersSchema, listCustomersSchema, updateCustomerSchema } from "./customer.validation.js";
 
 export function createCustomerController(service: CustomerService) {
   return {
@@ -78,6 +78,17 @@ export function createCustomerController(service: CustomerService) {
           createdDateTime: customer.createdDateTime,
           createdAtIST: customer.createdAtIST,
         },
+      });
+    },
+
+    createBulk: async (request: Request, response: Response) => {
+      const user = response.locals.authUser as PublicUser;
+      const input = parseInput(createBulkCustomersSchema, request.body);
+      const result = await service.createBulk(user, input);
+      response.status(201).json({
+        success: true,
+        message: `Successfully created ${result.count} customers`,
+        data: result,
       });
     },
 

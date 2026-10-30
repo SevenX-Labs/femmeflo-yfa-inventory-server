@@ -12,6 +12,7 @@ export function createManagerCustomerRoutes(database: PrismaClient) {
 
   router.get("/pincode/:pincode", controller.lookupPincode);
   router.get("/", requireAnyPermission(["view_customers", "CUSTOMER_READ", "SELLER_READ", "onboard_customers", "CUSTOMER_CREATE"]), controller.list);
+  router.post("/bulk", requirePermission("onboard_customers"), controller.createBulk);
   router.post("/", requirePermission("onboard_customers"), uploadCustomerPhotoMiddleware, controller.create);
   router.get("/:id", requireAnyPermission(["view_customers", "CUSTOMER_READ", "SELLER_READ", "onboard_customers", "CUSTOMER_CREATE"]), controller.get);
   router.patch("/:id", requirePermission("onboard_customers"), uploadCustomerPhotoMiddleware, controller.update);

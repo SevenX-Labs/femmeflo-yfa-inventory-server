@@ -127,3 +127,37 @@ export const listCustomersSchema = z.strictObject({
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type ListCustomersInput = z.infer<typeof listCustomersSchema>;
+
+export const bulkCustomerRowSchema = z.object({
+  shopName: z.string().trim().min(1, "Shop name is required").max(100),
+  contactName: z.string().trim().min(1, "Contact name is required").max(100),
+  phone: phoneSchema,
+  email: emailSchema.optional(),
+  categoryId: z.string().uuid().optional(),
+  sellerId: z.string().uuid().optional(),
+  shopNumber: optionalText,
+  streetName: optionalText,
+  pincode: pincodeSchema,
+  address: z.string().trim().max(500).optional(),
+  state: z.string().trim().min(1).max(100).optional(),
+  district: z.string().trim().min(1).max(100).optional(),
+  village: z.string().trim().min(1).max(100).optional(),
+  noPhotoReason: z.string().trim().max(500).optional(),
+  photoPath: z.string().trim().max(500).optional(),
+  latitude: z.union([z.number(), z.string()]).optional(),
+  longitude: z.union([z.number(), z.string()]).optional(),
+  accuracy: z.union([z.number(), z.coerce.number()]).optional(),
+  createdAt: z.union([z.string(), z.date()]).optional(),
+});
+
+export const createBulkCustomersSchema = z.strictObject({
+  customers: z.array(bulkCustomerRowSchema).min(1, "At least one customer is required").max(100, "Maximum 100 customers per batch"),
+  defaultSellerId: z.string().uuid().optional(),
+  defaultCategoryId: z.string().uuid().optional(),
+  defaultState: z.string().trim().optional(),
+  defaultDistrict: z.string().trim().optional(),
+  defaultVillage: z.string().trim().optional(),
+  defaultNoPhotoReason: z.string().trim().optional(),
+});
+
+export type CreateBulkCustomersInput = z.infer<typeof createBulkCustomersSchema>;

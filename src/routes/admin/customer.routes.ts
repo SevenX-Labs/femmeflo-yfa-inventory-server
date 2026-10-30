@@ -11,6 +11,7 @@ export function createAdminCustomerRoutes(database: PrismaClient) {
 
   router.get("/pincode/:pincode", controller.lookupPincode);
   router.get("/", controller.list);
+  router.post("/bulk", controller.createBulk);
   router.post("/", uploadCustomerPhotoMiddleware, controller.create);
   router.get("/:id", controller.get);
   router.patch("/:id", uploadCustomerPhotoMiddleware, controller.update);
