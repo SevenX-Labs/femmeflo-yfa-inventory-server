@@ -26,6 +26,9 @@ export const createCustomerSchema = z.strictObject({
   latitude: z.union([z.number(), z.string()]).optional(),
   longitude: z.union([z.number(), z.string()]).optional(),
   accuracy: z.union([z.number(), z.coerce.number()]).optional(),
+  date: z.string().trim().optional(),
+  time: z.string().trim().optional(),
+  createdAt: z.union([z.string(), z.date()]).optional(),
 })
 .superRefine((data, ctx) => {
   const result = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
@@ -71,6 +74,9 @@ export const updateCustomerSchema = z.strictObject({
   longitude: z.union([z.number(), z.string()]).optional(),
   accuracy: z.union([z.number(), z.coerce.number()]).optional(),
   active: z.boolean().optional(),
+  date: z.string().trim().optional(),
+  time: z.string().trim().optional(),
+  createdAt: z.union([z.string(), z.date()]).optional(),
 })
 .refine((value) => Object.keys(value).length > 0, "Provide at least one field")
 .superRefine((data, ctx) => {

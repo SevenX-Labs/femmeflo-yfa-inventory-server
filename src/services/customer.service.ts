@@ -3,6 +3,7 @@ import type { CreateCustomerInput, ListCustomersInput, UpdateCustomerInput } fro
 import { HttpError } from "../middleware/validation.js";
 import { uploadCustomerPhoto } from "./storage.service.js";
 import { forwardGeocode, isGpsAccuracyPoor, buildAddressQuery } from "./geocoding.service.js";
+import { istToUtcDate } from "../utils/timezone.utils.js";
 
 export type UserContext = {
   id: string;
@@ -14,11 +15,63 @@ export type UserContext = {
   isSeller?: boolean;
 };
 
-function serializeCustomer<T extends { latitude?: unknown; longitude?: unknown }>(customer: T): T & { latitude: number | null; longitude: number | null } {
+export function formatISTDetails(dateInput: unknown) {
+  if (!dateInput) return null;
+  const d = new Date(dateInput as string | number | Date);
+  if (Number.isNaN(d.getTime())) return null;
+
+  // Asia/Kolkata is UTC+05:30 (19,800,000 ms)
+  const istMs = d.getTime() + 19800000;
+  const istDate = new Date(istMs);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const year = istDate.getUTCFullYear();
+  const month = pad(istDate.getUTCMonth() + 1);
+  const day = pad(istDate.getUTCDate());
+  const hours24 = istDate.getUTCHours();
+  const hours = pad(hours24);
+  const minutes = pad(istDate.getUTCMinutes());
+  const seconds = pad(istDate.getUTCSeconds());
+
+  const hour12 = hours24 % 12 || 12;
+  const ampm = hours24 >= 12 ? "PM" : "AM";
+  const time12 = `${pad(hour12)}:${minutes}:${seconds} ${ampm}`;
+  const shortTime12 = `${pad(hour12)}:${minutes} ${ampm}`;
+  const time24 = `${hours}:${minutes}:${seconds}`;
+  const dateStr = `${year}-${month}-${day}`;
+
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const formattedDate = `${day} ${months[istDate.getUTCMonth()]} ${year}`;
+  const formattedDateTime = `${formattedDate}, ${shortTime12}`;
+
+  return {
+    date: dateStr,
+    time: time12,
+    shortTime: shortTime12,
+    time24,
+    formattedDate,
+    formattedDateTime,
+    dateTimeIST: `${dateStr} ${time24}`,
+    isoIST: `${dateStr}T${time24}+05:30`,
+  };
+}
+
+function serializeCustomer<T extends { latitude?: unknown; longitude?: unknown; createdAt?: unknown; updatedAt?: unknown }>(customer: T) {
+  const ist = customer.createdAt ? formatISTDetails(customer.createdAt) : null;
+  const updatedIst = customer.updatedAt ? formatISTDetails(customer.updatedAt) : null;
+
   return {
     ...customer,
     latitude: customer.latitude != null ? Number(customer.latitude) : null,
     longitude: customer.longitude != null ? Number(customer.longitude) : null,
+    // Live Indian Time (IST) formatting
+    createdDate: ist?.date ?? null,
+    createdTime: ist?.time ?? null,
+    createdDateTime: ist?.formattedDateTime ?? null,
+    createdAtIST: ist?.isoIST ?? null,
+    istDate: ist?.date ?? null,
+    istTime: ist?.time ?? null,
+    updatedAtIST: updatedIst?.isoIST ?? null,
   };
 }
 
@@ -63,6 +116,33 @@ export function createCustomerService(database: PrismaClient) {
         throw new HttpError(400, "sellerId is required when onboarding customer as Admin");
       }
 
+      let customCreatedAt: Date | undefined;
+      if (input.createdAt) {
+        const parsed = new Date(input.createdAt);
+        if (!Number.isNaN(parsed.getTime())) {
+          customCreatedAt = parsed;
+        }
+      } else if (input.date) {
+        let hours = 0;
+        let minutes = 0;
+        let seconds = 0;
+        if (input.time) {
+          const timeMatch = input.time.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?/i);
+          if (timeMatch) {
+            hours = parseInt(timeMatch[1] ?? "0", 10);
+            minutes = parseInt(timeMatch[2] ?? "0", 10);
+            seconds = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+            const ampm = timeMatch[4]?.toLowerCase();
+            if (ampm === "pm" && hours < 12) hours += 12;
+            if (ampm === "am" && hours === 12) hours = 0;
+          }
+        }
+        const parts = input.date.split("-").map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          customCreatedAt = istToUtcDate(parts[0], parts[1] - 1, parts[2], hours, minutes, seconds);
+        }
+      }
+
       const data: Record<string, unknown> = {
         shopName: input.shopName,
         contactName: input.contactName,
@@ -78,6 +158,10 @@ export function createCustomerService(database: PrismaClient) {
         district: input.district,
         village: input.village,
       };
+
+      if (customCreatedAt) {
+        data["createdAt"] = customCreatedAt;
+      }
 
       if (input.email !== undefined) data["email"] = input.email;
       if (input.photoPath !== undefined) data["photoPath"] = input.photoPath;

@@ -30,7 +30,14 @@ export function createCustomerController(service: CustomerService) {
         response.status(201).json({
           success: true,
           message: "Customer created with photo",
-          data: { customer: photoResult.customer, photoUrl: photoResult.photoUrl },
+          data: {
+            customer: photoResult.customer,
+            photoUrl: photoResult.photoUrl,
+            createdDate: photoResult.customer.createdDate,
+            createdTime: photoResult.customer.createdTime,
+            createdDateTime: photoResult.customer.createdDateTime,
+            createdAtIST: photoResult.customer.createdAtIST,
+          },
         });
         return;
       }
@@ -38,7 +45,13 @@ export function createCustomerController(service: CustomerService) {
       response.status(201).json({
         success: true,
         message: "Customer created",
-        data: { customer },
+        data: {
+          customer,
+          createdDate: customer.createdDate,
+          createdTime: customer.createdTime,
+          createdDateTime: customer.createdDateTime,
+          createdAtIST: customer.createdAtIST,
+        },
       });
     },
 
