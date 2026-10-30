@@ -165,6 +165,7 @@ export function createCustomerService(database: PrismaClient) {
 
       if (input.email !== undefined) data["email"] = input.email;
       if (input.photoPath !== undefined) data["photoPath"] = input.photoPath;
+      if (input.noPhotoReason !== undefined) data["noPhotoReason"] = input.noPhotoReason;
 
       let finalLat = input.latitude;
       let finalLng = input.longitude;
@@ -418,6 +419,7 @@ export function createCustomerService(database: PrismaClient) {
       if (input.district !== undefined) updateData["district"] = input.district;
       if (input.village !== undefined) updateData["village"] = input.village;
       if (input.photoPath !== undefined) updateData["photoPath"] = input.photoPath;
+      if (input.noPhotoReason !== undefined) updateData["noPhotoReason"] = input.noPhotoReason;
       if (input.active !== undefined) updateData["active"] = input.active;
 
       let finalLat = input.latitude;
@@ -480,7 +482,7 @@ export function createCustomerService(database: PrismaClient) {
 
       const customer = await database.customer.update({
         where: { id },
-        data: { photoPath: uploadResult.publicUrl },
+        data: { photoPath: uploadResult.publicUrl, noPhotoReason: null },
         include: {
           category: { select: { id: true, name: true } },
           seller: { select: { id: true, name: true, phone: true } },

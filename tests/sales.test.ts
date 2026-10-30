@@ -108,6 +108,7 @@ test("Sales Recording and Low-Price Approval Workflow", async (t) => {
       state: "Maharashtra",
       district: "Thane",
       village: "Diva",
+      noPhotoReason: "Test customer without photo",
     },
   });
   assert.equal(createCust.status, 201);

@@ -141,6 +141,7 @@ model Customer {
   district    String
   village     String
   photoPath   String?
+  noPhotoReason String?
   latitude    Decimal? @db.Decimal(9, 6)
   longitude   Decimal? @db.Decimal(9, 6)
   active      Boolean  @default(true)

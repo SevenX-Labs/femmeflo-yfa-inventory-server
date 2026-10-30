@@ -149,6 +149,45 @@ test("Category and Customer Management Endpoints Flow", async (t) => {
   const adminCustList = await request("/admin/customers", { token: adminToken });
   assert.equal(adminCustList.status, 200);
 
+  // 4. Test photo vs reason rules:
+  // 4a. Without photo AND without reason -> 400 Bad Request
+  const noPhotoNoReason = await request("/seller/customers", {
+    method: "POST",
+    token: sellerToken,
+    body: {
+      shopName: `No Photo No Reason ${timestamp}`,
+      contactName: "Suresh",
+      phone: `+9184${rand}`,
+      categoryId,
+      state: "Maharashtra",
+      district: "Thane",
+      village: "Diva",
+    },
+  });
+  assert.equal(noPhotoNoReason.status, 400);
+  assert.ok(noPhotoNoReason.json.message.includes("reason"));
+
+  // 4b. Without photo BUT with reason -> 201 Created (reason mandatory fulfilled)
+  const noPhotoWithReason = await request("/seller/customers", {
+    method: "POST",
+    token: sellerToken,
+    body: {
+      shopName: `No Photo With Reason ${timestamp}`,
+      contactName: "Mahesh",
+      phone: `+9183${rand}`,
+      categoryId,
+      state: "Maharashtra",
+      district: "Thane",
+      village: "Diva",
+      noPhotoReason: "Poor network connection at store",
+    },
+  });
+  assert.equal(noPhotoWithReason.status, 201);
+  assert.equal(
+    (noPhotoWithReason.json.data["customer"] as { noPhotoReason?: string }).noPhotoReason,
+    "Poor network connection at store"
+  );
+
   // Cleanup DB connections
   t.after(async () => {
     await cleanupTestData(database);

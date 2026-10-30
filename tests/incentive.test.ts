@@ -117,6 +117,7 @@ test("Incentive Management and Settings Flow", async (t) => {
       state: "Maharashtra",
       district: "Thane",
       village: "Diva",
+      noPhotoReason: "Test customer without photo",
     },
   });
   assert.equal(createCust.status, 201);

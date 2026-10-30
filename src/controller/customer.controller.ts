@@ -21,10 +21,20 @@ export function createCustomerController(service: CustomerService) {
     create: async (request: Request, response: Response) => {
       const user = response.locals.authUser as PublicUser;
       const input = parseInput(createCustomerSchema, request.body);
-      const customer = await service.create(user, input);
 
       const files = request.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
       const file = request.file || files?.["photo"]?.[0] || files?.["image"]?.[0];
+
+      // Business rule: If image is uploaded, reason is optional. If image is missing, reason is mandatory!
+      const hasPhoto = Boolean(file || input.photoPath);
+      if (!hasPhoto && (!input.noPhotoReason || input.noPhotoReason.trim().length === 0)) {
+        throw new HttpError(
+          400,
+          "Shopkeeper/store image is required. If unavailable due to network or other reasons, please provide a reason (noPhotoReason)."
+        );
+      }
+
+      const customer = await service.create(user, input);
       if (file) {
         const photoResult = await service.uploadPhoto(user, customer.id, file);
         response.status(201).json({
