@@ -28,7 +28,7 @@
     "test:integration": "prisma generate && tsx --test tests/integration/*.test.ts",
     "test:postman": "prisma generate && tsx scripts/test-postman.ts",
     "docs:api": "node scripts/generate-api-docs.mjs",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force && tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
