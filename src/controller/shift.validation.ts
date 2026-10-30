@@ -23,6 +23,9 @@ export const checkOutSchema = z.strictObject({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   notes: z.string().trim().max(1000).optional(),
+  saleDone: z.boolean().optional(),
+  customerFeedback: z.string().trim().max(1000).optional(),
+  saleId: z.string().uuid().optional(),
 });
 
 export const endShiftSchema = z.strictObject({

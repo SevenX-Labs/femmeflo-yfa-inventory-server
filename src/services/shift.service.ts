@@ -69,7 +69,10 @@ export function createShiftService(database: PrismaClient) {
         include: {
           visits: {
             orderBy: { checkInTime: "asc" },
-            include: { customer: { select: { id: true, shopName: true, phone: true } } },
+            include: {
+              customer: { select: { id: true, shopName: true, phone: true } },
+              sale: { select: { id: true, totalPaise: true, quantity: true, paymentMode: true, status: true } },
+            },
           },
         },
       });
@@ -127,8 +130,14 @@ export function createShiftService(database: PrismaClient) {
           checkOutTime: now,
           durationMins,
           notes: input.notes ?? visit.notes,
+          saleDone: input.saleDone ?? false,
+          customerFeedback: input.customerFeedback ?? null,
+          saleId: input.saleId ?? null,
         },
-        include: { customer: { select: { id: true, shopName: true, phone: true } } },
+        include: {
+          customer: { select: { id: true, shopName: true, phone: true } },
+          sale: { select: { id: true, totalPaise: true, quantity: true, paymentMode: true, status: true } },
+        },
       });
     },
 
@@ -181,7 +190,10 @@ export function createShiftService(database: PrismaClient) {
         include: {
           visits: {
             orderBy: { checkInTime: "asc" },
-            include: { customer: { select: { id: true, shopName: true, phone: true } } },
+            include: {
+              customer: { select: { id: true, shopName: true, phone: true } },
+              sale: { select: { id: true, totalPaise: true, quantity: true, paymentMode: true, status: true } },
+            },
           },
         },
       });
@@ -217,7 +229,13 @@ export function createShiftService(database: PrismaClient) {
           take: query.pageSize,
           orderBy: { startTime: "desc" },
           include: {
-            visits: { orderBy: { checkInTime: "asc" } },
+            visits: {
+              orderBy: { checkInTime: "asc" },
+              include: {
+                customer: { select: { id: true, shopName: true, phone: true } },
+                sale: { select: { id: true, totalPaise: true, quantity: true, paymentMode: true, status: true } },
+              },
+            },
           },
         }),
       ]);

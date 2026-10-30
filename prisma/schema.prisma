@@ -274,6 +274,7 @@ model Sale {
   invoice               Invoice?
   payments              PaymentRecord[]
   notifications         Notification[]
+  shiftVisits           ShiftVisit[]
 
   @@index([sellerId, createdAt])
   @@index([status, createdAt])
@@ -456,20 +457,25 @@ model Shift {
 }
 
 model ShiftVisit {
-  id           String    @id @default(uuid()) @db.Uuid
-  shiftId      String    @db.Uuid
-  shift        Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  customerId   String?   @db.Uuid
-  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  shopName     String
-  latitude     Float
-  longitude    Float
-  checkInTime  DateTime  @default(now())
-  checkOutTime DateTime?
-  durationMins Float?
-  notes        String?
-  createdAt    DateTime  @default(now())
+  id               String    @id @default(uuid()) @db.Uuid
+  shiftId          String    @db.Uuid
+  shift            Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  customerId       String?   @db.Uuid
+  customer         Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  shopName         String
+  latitude         Float
+  longitude        Float
+  checkInTime      DateTime  @default(now())
+  checkOutTime     DateTime?
+  durationMins     Float?
+  notes            String?
+  saleDone         Boolean?  @default(false)
+  customerFeedback String?
+  saleId           String?   @db.Uuid
+  sale             Sale?     @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  createdAt        DateTime  @default(now())
 
   @@index([shiftId])
   @@index([customerId])
+  @@index([saleId])
 }
