@@ -64,6 +64,7 @@ function serializeCustomer<T extends { latitude?: unknown; longitude?: unknown; 
     ...customer,
     latitude: customer.latitude != null ? Number(customer.latitude) : null,
     longitude: customer.longitude != null ? Number(customer.longitude) : null,
+    photoUrl: (customer as any).photoPath || (customer as any).photoUrl || null,
     // Live Indian Time (IST) formatting
     createdDate: ist?.date ?? null,
     createdTime: ist?.time ?? null,
