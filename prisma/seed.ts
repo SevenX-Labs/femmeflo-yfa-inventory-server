@@ -56,6 +56,7 @@ async function main() {
     // Auto-seed Admin ONLY
     const adminName = process.env.ADMIN_NAME || "Super Admin";
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@femmeflo.in").trim().toLowerCase();
+    const adminPhone = process.env.ADMIN_PHONE || "+919876543230";
     const adminPassword = process.env.ADMIN_PASSWORD || DEFAULT_INITIAL_PASSWORD;
 
     const passwordHash = await bcrypt.hash(adminPassword, 12);
@@ -64,15 +65,28 @@ async function main() {
       data: {
         name: adminName,
         email: adminEmail,
+        phone: adminPhone,
         passwordHash,
         role: "SUPER_ADMIN",
         active: true,
       },
     });
 
+    await database.businessSettings.upsert({
+      where: { id: 1 },
+      create: {
+        id: 1,
+        companyName: "FemmeFlo",
+        minimumPricePaise: 2500,
+        invoiceTerms: "Standard terms and conditions apply.",
+      },
+      update: {},
+    });
+
     console.log("==========================================");
     console.log("Database reset complete. Super Admin seeded:");
     console.log(`Email:    ${admin.email}`);
+    console.log(`Phone:    ${admin.phone}`);
     console.log(`Password: ${adminPassword}`);
     console.log(`Role:     ${admin.role}`);
     console.log("==========================================");

@@ -4,9 +4,10 @@ import { AuthenticationError, type AuthService } from "../../services/auth/auth.
 import type { PublicUser } from "../../services/auth/auth.types.js";
 import { parseInput, passwordSchema } from "../../middleware/validation.js";
 
-const loginBody = z.strictObject({
+const loginBody = z.object({
   login: z.string().trim().min(1).max(254),
   password: z.string().min(1).max(1024),
+  roleHint: z.string().optional(),
 });
 
 const forgotPasswordBody = z.strictObject({
