@@ -1,9 +1,24 @@
 import { z } from "zod";
 
-export const passwordSchema = z.string().min(12).refine(
-  (value) => Buffer.byteLength(value, "utf8") <= 72,
-  "Password must not exceed 72 UTF-8 bytes",
-);
+export const passwordSchema = z
+  .string()
+  .min(7, "Password must be at least 7 characters")
+  .refine(
+    (value) => Buffer.byteLength(value, "utf8") <= 72,
+    "Password must not exceed 72 UTF-8 bytes",
+  )
+  .refine(
+    (value) => /[a-zA-Z]/.test(value),
+    "Password must contain at least one letter",
+  )
+  .refine(
+    (value) => /[0-9]/.test(value),
+    "Password must contain at least one number",
+  )
+  .refine(
+    (value) => /[^a-zA-Z0-9]/.test(value),
+    "Password must contain at least one symbol",
+  );
 
 /**
  * 10-digit mobile phone validator and normalizer.

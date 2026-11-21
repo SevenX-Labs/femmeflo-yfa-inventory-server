@@ -155,7 +155,11 @@ test("password change verifies the old password, hashes the new one and revokes 
 test("password validation handles bcrypt's byte limit and onboarding rejects privilege fields", () => {
   assert.equal(passwordSchema.safeParse("short").success, false);
   assert.equal(passwordSchema.safeParse("🙂".repeat(19)).success, false);
-  assert.equal(passwordSchema.safeParse("a".repeat(72)).success, true);
+  assert.equal(passwordSchema.safeParse("Pass123").success, false);
+  assert.equal(passwordSchema.safeParse("Pass@ab").success, false);
+  assert.equal(passwordSchema.safeParse("12345@!").success, false);
+  assert.equal(passwordSchema.safeParse("Pass@12").success, true);
+  assert.equal(passwordSchema.safeParse("Pass@1" + "a".repeat(66)).success, true);
   const input = { name: "Seller", phone: "+919876543210", password };
   assert.equal(managerCreateSellerSchema.safeParse({ ...input, managerId: id }).success, false);
   assert.equal(createManagerSchema.safeParse({ ...input, role: "SUPER_ADMIN" }).success, false);
