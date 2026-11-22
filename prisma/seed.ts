@@ -13,6 +13,11 @@ async function main() {
 
   const database = createDatabase(databaseUrl);
 
+  if (process.env.ALLOW_DATABASE_PURGE !== "true") {
+    console.log("[SAFETY GUARD] Database purge aborted. Live data is protected. Set ALLOW_DATABASE_PURGE=true if you explicitly wish to reset the database.");
+    return;
+  }
+
   try {
     console.log("Purging all data across all schemas/tables...");
 

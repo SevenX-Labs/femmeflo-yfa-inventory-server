@@ -1,6 +1,18 @@
 import type { PrismaClient } from "../src/generated/prisma/client.js";
 
 export async function cleanupTestData(database: PrismaClient) {
+  // HARD SAFETY GUARD: Never delete data from Supabase, production, or remote databases!
+  const dbUrl = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL || "";
+  if (
+    dbUrl.includes("supabase.co") ||
+    dbUrl.includes("supabase.com") ||
+    dbUrl.includes("pooler.supabase") ||
+    process.env.ALLOW_TEST_DB_PURGE !== "true"
+  ) {
+    console.warn("[SAFETY GUARD] Skipping database cleanup: target database is a live remote database. No data deleted.");
+    return;
+  }
+
   try {
     const mainAdminEmail = (process.env.ADMIN_EMAIL || "admin@femmeflo.in").trim().toLowerCase();
     await database.delivery.deleteMany({});
