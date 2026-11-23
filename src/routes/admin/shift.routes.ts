@@ -9,6 +9,7 @@ export function createAdminShiftRoutes(database: PrismaClient) {
 
   router.get("/", controller.list);
   router.get("/:id", controller.get);
+  router.post("/:id/end", controller.endShift);
 
   return router;
 }
