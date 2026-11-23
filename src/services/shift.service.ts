@@ -7,6 +7,7 @@ import type {
   ListShiftsQuery,
 } from "../controller/shift.validation.js";
 import { HttpError } from "../middleware/validation.js";
+import { realtimeHub } from "./realtime/realtime.service.js";
 import { calculateRouteDistanceKm } from "../utils/distance.utils.js";
 
 type VisitWithTiming = {
@@ -50,7 +51,7 @@ export function createShiftService(database: PrismaClient) {
       });
       if (existing) return existing;
 
-      return database.shift.create({
+      const shift = await database.shift.create({
         data: {
           sellerId,
           startLatitude: input.latitude,
@@ -61,6 +62,16 @@ export function createShiftService(database: PrismaClient) {
         },
         include: { visits: true },
       });
+
+      realtimeHub.broadcast({
+        type: "SHIFT_UPDATE",
+        actorId: sellerId,
+        role: "SELLER",
+        entityId: shift.id,
+        action: "START_SHIFT",
+      });
+
+      return shift;
     },
 
     getCurrentShift: async (sellerId: string) => {
@@ -98,6 +109,16 @@ export function createShiftService(database: PrismaClient) {
         },
         include: { customer: { select: { id: true, shopName: true, phone: true } } },
       });
+
+      realtimeHub.broadcast({
+        type: "SHIFT_UPDATE",
+        actorId: sellerId,
+        role: "SELLER",
+        entityId: shift.id,
+        action: "CHECK_IN",
+        data: { shopName: input.shopName, visitId: visit.id },
+      });
+
       return visit;
     },
 
@@ -124,7 +145,7 @@ export function createShiftService(database: PrismaClient) {
         (now.getTime() - visit.checkInTime.getTime()) / 60000 * 100
       ) / 100;
 
-      return database.shiftVisit.update({
+      const updatedVisit = await database.shiftVisit.update({
         where: { id: input.visitId },
         data: {
           checkOutTime: now,
@@ -139,6 +160,17 @@ export function createShiftService(database: PrismaClient) {
           sale: { select: { id: true, totalPaise: true, quantity: true, paymentMode: true, status: true } },
         },
       });
+
+      realtimeHub.broadcast({
+        type: "SHIFT_UPDATE",
+        actorId: sellerId,
+        role: "SELLER",
+        entityId: shift.id,
+        action: "CHECK_OUT",
+        data: { shopName: visit.shopName, visitId: visit.id, saleDone: input.saleDone },
+      });
+
+      return updatedVisit;
     },
 
     endShift: async (sellerId: string, input: EndShiftInput) => {
@@ -174,7 +206,7 @@ export function createShiftService(database: PrismaClient) {
 
       const totalDistanceKm = await calculateRouteDistanceKm(routePoints);
 
-      return database.shift.update({
+      const updatedShift = await database.shift.update({
         where: { id: shift.id },
         data: {
           endTime: new Date(),
@@ -197,6 +229,17 @@ export function createShiftService(database: PrismaClient) {
           },
         },
       });
+
+      realtimeHub.broadcast({
+        type: "SHIFT_UPDATE",
+        actorId: sellerId,
+        role: "SELLER",
+        entityId: shift.id,
+        action: "END_SHIFT",
+        data: { totalDistanceKm },
+      });
+
+      return updatedShift;
     },
 
     listSellerShifts: async (sellerId: string, query: ListShiftsQuery) => {

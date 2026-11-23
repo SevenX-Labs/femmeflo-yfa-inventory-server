@@ -4,6 +4,7 @@ import { HttpError } from "../../middleware/validation.js";
 import { processInvoicePdf } from "../pdf.service.js";
 import { getISTPeriodDateRange } from "../../utils/timezone.utils.js";
 import { getCachedBusinessSettings, invalidateBusinessSettingsCache } from "../settings.cache.js";
+import { realtimeHub } from "../realtime/realtime.service.js";
 
 // Helper function to build date range filters for month boundaries in Asia/Kolkata (IST UTC+05:30)
 export function getPeriodDateRange(period?: "all" | "this_month" | "last_month"): { gte?: Date; lte?: Date } | undefined {
@@ -329,6 +330,43 @@ export function createSellerSalesService(database: PrismaClient) {
       processInvoicePdf(database, result.invoice.id).catch((err) => {
         console.warn("Background PDF generation warning:", err);
       });
+
+      // Broadcast real-time event for sales and inventory/approvals
+      if (result.sale.status === "PENDING_APPROVAL") {
+        realtimeHub.broadcast({
+          type: "APPROVAL_UPDATE",
+          actorId: sellerId,
+          role: "SELLER",
+          entityId: result.sale.id,
+          action: "NEW_PENDING_SALE",
+          data: { saleId: result.sale.id, sellerId, totalPaise: grandTotalPaise },
+        });
+        realtimeHub.broadcast({
+          type: "SALE_STATUS_UPDATE",
+          actorId: sellerId,
+          role: "SELLER",
+          entityId: result.sale.id,
+          action: "CREATE_PENDING",
+          data: { saleId: result.sale.id, sellerId, status: "PENDING_APPROVAL" },
+        });
+      } else {
+        realtimeHub.broadcast({
+          type: "SALE_STATUS_UPDATE",
+          actorId: sellerId,
+          role: "SELLER",
+          entityId: result.sale.id,
+          action: "CREATE_CONFIRMED",
+          data: { saleId: result.sale.id, sellerId, status: "CONFIRMED" },
+        });
+        realtimeHub.broadcast({
+          type: "INVENTORY_UPDATE",
+          actorId: sellerId,
+          role: "SELLER",
+          action: "SALE_CONFIRMED_DEDUCTION",
+          data: { sellerId, quantity: totalQuantity },
+        });
+      }
+
       return { ...result.sale, invoice: result.invoice };
     },
 
@@ -824,6 +862,31 @@ export function createSellerSalesService(database: PrismaClient) {
           console.warn("Background PDF generation warning:", err);
         });
       }
+
+      realtimeHub.broadcast({
+        type: "SALE_STATUS_UPDATE",
+        actorId: sellerId,
+        role: "SELLER",
+        entityId: saleId,
+        action: "UPDATE",
+        data: { saleId, sellerId, status: result.sale.status },
+      });
+      if (result.sale.status === "PENDING_APPROVAL") {
+        realtimeHub.broadcast({
+          type: "APPROVAL_UPDATE",
+          actorId: sellerId,
+          role: "SELLER",
+          entityId: saleId,
+          action: "RESUBMIT_FOR_APPROVAL",
+        });
+      }
+      realtimeHub.broadcast({
+        type: "INVENTORY_UPDATE",
+        actorId: sellerId,
+        role: "SELLER",
+        action: "SALE_UPDATED",
+        data: { sellerId },
+      });
 
       return result.sale;
     },

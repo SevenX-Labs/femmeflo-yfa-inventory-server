@@ -33,6 +33,7 @@ import { createAdminShiftRoutes } from "./admin/shift.routes.js";
 import { createGeoRoutes } from "./geo.routes.js";
 import { createAdminProductRoutes } from "./admin/product.routes.js";
 import { createProductListRoutes } from "./product.routes.js";
+import { createRealtimeRoutes } from "./realtime.routes.js";
 import { generateInvoicePdfBuffer, type InvoiceSnapshot } from "../services/pdf.service.js";
 import { getCachedBusinessSettings } from "../services/settings.cache.js";
 
@@ -134,6 +135,9 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
       next(err);
     }
   });
+
+  // Real-time Event Streaming & Sync
+  router.use("/realtime", createRealtimeRoutes(auth));
 
   // Geocoding
   router.use("/geo", authenticate, createGeoRoutes());

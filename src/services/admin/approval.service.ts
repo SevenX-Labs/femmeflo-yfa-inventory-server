@@ -3,6 +3,7 @@ import type { ListSalesInput, RejectSaleInput } from "../../controller/sales.val
 import { HttpError } from "../../middleware/validation.js";
 import { processInvoicePdf } from "../pdf.service.js";
 import { getCachedBusinessSettings } from "../settings.cache.js";
+import { realtimeHub } from "../realtime/realtime.service.js";
 
 export function createAdminApprovalService(database: PrismaClient) {
   return {
@@ -235,6 +236,31 @@ export function createAdminApprovalService(database: PrismaClient) {
 
       const pdfPath = await processInvoicePdf(database, result.invoice.id).catch(() => null);
       const invoice = pdfPath ? { ...result.invoice, pdfPath } : result.invoice;
+
+      // Broadcast real-time updates for approvals, sale status, and stock deduction
+      realtimeHub.broadcast({
+        type: "SALE_STATUS_UPDATE",
+        actorId: adminId,
+        role: "SUPER_ADMIN",
+        entityId: saleId,
+        action: "APPROVE",
+        data: { saleId, sellerId: result.updatedSale.sellerId, status: "CONFIRMED" },
+      });
+      realtimeHub.broadcast({
+        type: "APPROVAL_UPDATE",
+        actorId: adminId,
+        role: "SUPER_ADMIN",
+        entityId: saleId,
+        action: "APPROVE",
+      });
+      realtimeHub.broadcast({
+        type: "INVENTORY_UPDATE",
+        actorId: adminId,
+        role: "SUPER_ADMIN",
+        action: "SALE_APPROVED_DEDUCTION",
+        data: { sellerId: result.updatedSale.sellerId },
+      });
+
       return { ...result.updatedSale, invoice };
     },
 
@@ -278,6 +304,23 @@ export function createAdminApprovalService(database: PrismaClient) {
           kind: "LOW_PRICE_SALE_REJECTED",
           message: `Your sale of ${totalQty} items to ${sale.customer.shopName} was rejected by Admin. ${input.reason ? `Reason: ${input.reason}` : ""}`,
         },
+      });
+
+      // Broadcast real-time rejection
+      realtimeHub.broadcast({
+        type: "SALE_STATUS_UPDATE",
+        actorId: adminId,
+        role: "SUPER_ADMIN",
+        entityId: saleId,
+        action: "REJECT",
+        data: { saleId, sellerId: sale.sellerId, status: "REJECTED", reason: input.reason },
+      });
+      realtimeHub.broadcast({
+        type: "APPROVAL_UPDATE",
+        actorId: adminId,
+        role: "SUPER_ADMIN",
+        entityId: saleId,
+        action: "REJECT",
       });
 
       return updatedSale;

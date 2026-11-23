@@ -2,6 +2,7 @@ import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
 import type { CreateWarehouseInput, ListTransactionsInput, UpdateLocationBalanceInput, CreateReceiptInput, CreateTransferInput } from "../../controller/inventory.validation.js";
 import { HttpError } from "../../middleware/validation.js";
 import { getCachedBusinessSettings, invalidateBusinessSettingsCache } from "../settings.cache.js";
+import { realtimeHub } from "../realtime/realtime.service.js";
 
 export function createAdminInventoryService(database: PrismaClient) {
   async function resolveDefaultProductItems(quantity: number) {
@@ -291,6 +292,14 @@ export function createAdminInventoryService(database: PrismaClient) {
           ),
         ]);
 
+        realtimeHub.broadcast({
+          type: "INVENTORY_UPDATE",
+          actorId,
+          role: "SUPER_ADMIN",
+          action: "RECEIPT",
+          data: { locationId: hq.id, quantity: totalQty },
+        });
+
         return { hq: updatedHQ, movements };
       });
     },
@@ -412,6 +421,18 @@ export function createAdminInventoryService(database: PrismaClient) {
             })
           ),
         ]);
+
+        realtimeHub.broadcast({
+          type: "INVENTORY_UPDATE",
+          actorId,
+          role: "SUPER_ADMIN",
+          action: "TRANSFER",
+          data: {
+            sourceId: source.id,
+            destinationId: destination.id,
+            quantity: totalQty,
+          },
+        });
 
         return { source: updatedSource, destination: updatedDestination, movements };
       }, { timeout: 30000, maxWait: 10000 });
@@ -541,6 +562,14 @@ export function createAdminInventoryService(database: PrismaClient) {
             },
           });
         }
+
+        realtimeHub.broadcast({
+          type: "INVENTORY_UPDATE",
+          actorId,
+          role: "SUPER_ADMIN",
+          action: "BALANCE_ADJUSTMENT",
+          data: { locationId, oldBalance, newBalance, diff },
+        });
 
         return { location: updatedLocation, movement, diff, oldBalance, newBalance };
       });
