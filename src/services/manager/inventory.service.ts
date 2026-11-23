@@ -7,17 +7,35 @@ export function createManagerInventoryService(database: PrismaClient) {
       const sellers = await database.user.findMany({
         where: {
           OR: [
-            { managerId: manager.id, role: "SELLER" },
+            { managerId: manager.id },
             { id: manager.id },
+            ...(manager.district ? [{ district: { equals: manager.district, mode: "insensitive" as const }, role: "SELLER" as const }] : []),
           ],
-          ...(manager.state && { state: { equals: manager.state, mode: "insensitive" } }),
-          ...(manager.district && { district: { equals: manager.district, mode: "insensitive" } }),
         },
         include: {
           stockLocation: true,
         },
         orderBy: { name: "asc" },
       });
+
+      // Ensure all fetched users have an active stockLocation if missing
+      for (const s of sellers) {
+        if (!s.stockLocation) {
+          try {
+            const loc = await database.stockLocation.create({
+              data: {
+                type: "SELLER",
+                name: `${s.name} Stock`,
+                sellerId: s.id,
+                balance: 0,
+              },
+            });
+            s.stockLocation = loc;
+          } catch {
+            // Ignore if concurrent creation
+          }
+        }
+      }
 
       const locationIds = sellers.map((s) => s.stockLocation?.id).filter((id): id is string => !!id);
       const sellerIds = sellers.map((s) => s.id);
@@ -47,29 +65,30 @@ export function createManagerInventoryService(database: PrismaClient) {
       let totalRemaining = 0;
 
       const sellerItems = sellers.map((seller) => {
-          const locId = seller.stockLocation?.id;
-          const assigned = locId ? (assignedMap.get(locId) ?? 0) : 0;
-          const sold = soldMap.get(seller.id) ?? 0;
-          const remaining = seller.stockLocation?.balance ?? 0;
+        const locId = seller.stockLocation?.id;
+        const assignedFromMovements = locId ? (assignedMap.get(locId) ?? 0) : 0;
+        const sold = soldMap.get(seller.id) ?? 0;
+        const remaining = seller.stockLocation?.balance ?? 0;
+        const assigned = Math.max(assignedFromMovements, remaining + sold);
 
-          totalAssigned += assigned;
-          totalSold += sold;
-          totalRemaining += remaining;
+        totalAssigned += assigned;
+        totalSold += sold;
+        totalRemaining += remaining;
 
-          return {
-            seller: {
-              id: seller.id,
-              name: seller.name,
-              phone: seller.phone,
-              state: seller.state,
-              district: seller.district,
-              village: seller.village,
-            },
-            assigned,
-            sold,
-            remaining,
-          };
-        });
+        return {
+          seller: {
+            id: seller.id,
+            name: seller.name,
+            phone: seller.phone,
+            state: seller.state,
+            district: seller.district,
+            village: seller.village,
+          },
+          assigned,
+          sold,
+          remaining,
+        };
+      });
 
       return {
         summary: {
