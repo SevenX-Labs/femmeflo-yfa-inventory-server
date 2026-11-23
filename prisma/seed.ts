@@ -40,8 +40,8 @@ async function main() {
 
       // 4. Sales & Inventory
       await tx.saleLineItem.deleteMany({});
-      await tx.sale.deleteMany({});
       await tx.stockMovement.deleteMany({});
+      await tx.sale.deleteMany({});
       await tx.productBalance.deleteMany({});
       await tx.stockLocation.deleteMany({});
 

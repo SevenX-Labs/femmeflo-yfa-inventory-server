@@ -10,7 +10,10 @@ export function createManagerSalesService(database: PrismaClient) {
   return {
     list: async (manager: PublicUser, query: ListSalesInput) => {
       const where: Prisma.SaleWhereInput = {
-        seller: { managerId: manager.id },
+        OR: [
+          { seller: { managerId: manager.id } },
+          { sellerId: manager.id },
+        ],
       };
 
       if (query.status) where.status = query.status;
@@ -78,7 +81,7 @@ export function createManagerSalesService(database: PrismaClient) {
         },
       });
 
-      if (!sale || sale.seller.managerId !== manager.id) {
+      if (!sale || (sale.seller.managerId !== manager.id && sale.sellerId !== manager.id)) {
         throw new HttpError(404, "Sale record not found or outside assigned scope");
       }
       return sale;
@@ -97,7 +100,7 @@ export function createManagerSalesService(database: PrismaClient) {
         },
       });
 
-      if (!sale || sale.seller.managerId !== manager.id) {
+      if (!sale || (sale.seller.managerId !== manager.id && sale.sellerId !== manager.id)) {
         throw new HttpError(404, "Sale record not found or outside assigned scope");
       }
 

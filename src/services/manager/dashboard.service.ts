@@ -5,17 +5,26 @@ export function createManagerDashboardService(database: PrismaClient) {
   return {
     getDashboard: async (manager: PublicUser) => {
       const sellerScope: Prisma.UserWhereInput = {
-        managerId: manager.id,
-        role: "SELLER",
+        OR: [
+          { managerId: manager.id, role: "SELLER" },
+          { id: manager.id },
+        ],
         ...(manager.state && { state: { equals: manager.state, mode: "insensitive" } }),
         ...(manager.district && { district: { equals: manager.district, mode: "insensitive" } }),
       };
 
       const customerScope: Prisma.CustomerWhereInput = {
-        seller: sellerScope,
+        OR: [
+          { seller: sellerScope },
+          { sellerId: manager.id },
+          { createdById: manager.id },
+        ],
       };
       const salesScope: Prisma.SaleWhereInput = {
-        seller: sellerScope,
+        OR: [
+          { seller: sellerScope },
+          { sellerId: manager.id },
+        ],
         status: "CONFIRMED",
       };
 

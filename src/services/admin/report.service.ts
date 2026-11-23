@@ -49,6 +49,7 @@ export function createAdminReportService(database: PrismaClient) {
             paymentMode: true,
             status: true,
             sellerId: true,
+            customerFeedback: true,
             customer: { select: { id: true, shopName: true, contactName: true, state: true, district: true, village: true } },
             seller: { select: { id: true, name: true, phone: true, manager: { select: { id: true, name: true } } } },
           },

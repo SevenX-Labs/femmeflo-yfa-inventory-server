@@ -321,14 +321,32 @@ export function createAdminInventoryService(database: PrismaClient) {
       const productIds = items.map((i) => i.productId);
 
       return database.$transaction(async (tx) => {
-        const [source, destination, products, srcBalances] = await Promise.all([
+        let destLoc = await tx.stockLocation.findUnique({ where: { id: input.destinationId } });
+        if (!destLoc) {
+          destLoc = await tx.stockLocation.findUnique({ where: { sellerId: input.destinationId } });
+          if (!destLoc) {
+            const userTarget = await tx.user.findUnique({ where: { id: input.destinationId } });
+            if (userTarget && (userTarget.role === "SELLER" || userTarget.isSeller || userTarget.role === "MANAGER")) {
+              destLoc = await tx.stockLocation.create({
+                data: {
+                  type: "SELLER",
+                  name: `${userTarget.name} Stock`,
+                  sellerId: userTarget.id,
+                  balance: 0,
+                },
+              });
+            }
+          }
+        }
+
+        const [source, products, srcBalances] = await Promise.all([
           tx.stockLocation.findUnique({ where: { id: input.sourceId } }),
-          tx.stockLocation.findUnique({ where: { id: input.destinationId } }),
           tx.product.findMany({ where: { id: { in: productIds } } }),
           tx.productBalance.findMany({
             where: { productId: { in: productIds }, stockLocationId: input.sourceId },
           }),
         ]);
+        const destination = destLoc;
 
         if (!source || !destination) {
           throw new HttpError(404, "Source or destination stock location not found");

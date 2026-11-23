@@ -6,8 +6,10 @@ export function createManagerInventoryService(database: PrismaClient) {
     getInventory: async (manager: PublicUser) => {
       const sellers = await database.user.findMany({
         where: {
-          managerId: manager.id,
-          role: "SELLER",
+          OR: [
+            { managerId: manager.id, role: "SELLER" },
+            { id: manager.id },
+          ],
           ...(manager.state && { state: { equals: manager.state, mode: "insensitive" } }),
           ...(manager.district && { district: { equals: manager.district, mode: "insensitive" } }),
         },

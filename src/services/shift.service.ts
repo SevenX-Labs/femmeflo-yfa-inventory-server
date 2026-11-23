@@ -278,7 +278,10 @@ export function createShiftService(database: PrismaClient) {
       } else if (query.managerId) {
         where.seller = { managerId: query.managerId };
       } else if (managerIdScope) {
-        where.seller = { managerId: managerIdScope };
+        where.OR = [
+          { sellerId: managerIdScope },
+          { seller: { managerId: managerIdScope } },
+        ];
       }
 
       const [total, items] = await Promise.all([
@@ -290,7 +293,13 @@ export function createShiftService(database: PrismaClient) {
           orderBy: { startTime: "desc" },
           include: {
             seller: { select: { id: true, name: true, phone: true, employeeCode: true } },
-            visits: { orderBy: { checkInTime: "asc" } },
+            visits: {
+              orderBy: { checkInTime: "asc" },
+              include: {
+                customer: { select: { id: true, shopName: true, phone: true } },
+                sale: { select: { id: true, totalPaise: true, quantity: true, paymentMode: true, status: true, customerFeedback: true } },
+              },
+            },
           },
         }),
       ]);
