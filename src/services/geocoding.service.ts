@@ -29,11 +29,13 @@ export interface GeoLookupResult {
   latitude: number;
   longitude: number;
   formattedAddress: string;
+  street: string | null;
   state: string | null;
   district: string | null;
   sublocality: string | null;
   pincode: string | null;
   locationType: string;
+  confidence: "high" | "medium" | "low";
 }
 
 function getApiKey(): string {
@@ -47,16 +49,35 @@ function extractAddressComponent(result: GoogleGeocodeResult, type: string): str
   return component?.long_name ?? null;
 }
 
+function determineConfidence(locationType: string): "high" | "medium" | "low" {
+  switch (locationType) {
+    case "ROOFTOP":
+      return "high";
+    case "RANGE_INTERPOLATED":
+    case "GEOMETRIC_CENTER":
+      return "medium";
+    case "APPROXIMATE":
+    default:
+      return "low";
+  }
+}
+
 function parseResult(result: GoogleGeocodeResult): GeoLookupResult {
+  const streetNumber = extractAddressComponent(result, "street_number");
+  const route = extractAddressComponent(result, "route");
+  const street = [streetNumber, route].filter(Boolean).join(" ") || null;
+
   return {
     latitude: result.geometry.location.lat,
     longitude: result.geometry.location.lng,
     formattedAddress: result.formatted_address,
+    street,
     state: extractAddressComponent(result, "administrative_area_level_1"),
     district: extractAddressComponent(result, "administrative_area_level_2"),
     sublocality: extractAddressComponent(result, "sublocality_level_1") ?? extractAddressComponent(result, "sublocality"),
     pincode: extractAddressComponent(result, "postal_code"),
     locationType: result.geometry.location_type,
+    confidence: determineConfidence(result.geometry.location_type),
   };
 }
 
