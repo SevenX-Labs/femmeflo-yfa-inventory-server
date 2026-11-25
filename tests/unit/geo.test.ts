@@ -7,6 +7,8 @@ import {
   calculateHaversineDistanceKm,
   INDIA_BOUNDS,
 } from "../../src/utils/geo.utils.js";
+import { parseGeocodeResult } from "../../src/services/geocoding.service.js";
+import { calculateRouteDistanceKm } from "../../src/utils/distance.utils.js";
 
 test("GPS / Geolocation Validation Unit Tests", async (t) => {
   await t.test("Valid Indian coordinates pass validation (Delhi, Mumbai, Jaipur, Bangalore)", () => {
@@ -116,5 +118,50 @@ test("GPS / Geolocation Validation Unit Tests", async (t) => {
       { latitude: 18.5204, longitude: 73.8567 }
     );
     assert.ok(dist > 100 && dist < 160, `Distance ${dist}km should be between 100 and 160km`);
+  });
+
+  await t.test("parseGeocodeResult avoids bare plot numbers and Division labels", () => {
+    const parsed = parseGeocodeResult({
+      formatted_address: "1, Sabe Gaon, Diva, Thane, Maharashtra 400612, India",
+      geometry: {
+        location: { lat: 19.18621, lng: 73.03997 },
+        location_type: "ROOFTOP",
+      },
+      address_components: [
+        { long_name: "1", short_name: "1", types: ["street_number"] },
+        { long_name: "Sabe Gaon", short_name: "Sabe Gaon", types: ["sublocality_level_1", "sublocality"] },
+        { long_name: "Diva", short_name: "Diva", types: ["locality"] },
+        { long_name: "Thane", short_name: "Thane", types: ["administrative_area_level_3"] },
+        { long_name: "Konkan Division", short_name: "Konkan Division", types: ["administrative_area_level_2"] },
+        { long_name: "Maharashtra", short_name: "MH", types: ["administrative_area_level_1"] },
+        { long_name: "400612", short_name: "400612", types: ["postal_code"] },
+      ],
+    });
+
+    assert.notEqual(parsed.street, "1");
+    assert.equal(parsed.district, "Thane");
+    assert.ok(parsed.sublocality?.includes("Sabe Gaon"));
+    assert.equal(parsed.pincode, "400612");
+  });
+
+  await t.test("calculateRouteDistanceKm collapses indoor jitter <25m and sums 500m+ multi-stop hops", async () => {
+    const stationaryKm = await calculateRouteDistanceKm([
+      { lat: 19.18621, lng: 73.03997 },
+      { lat: 19.18625, lng: 73.04002 },
+    ]);
+    assert.equal(stationaryKm, 0);
+
+    const prevKey = process.env["GOOGLE_MAPS_API_KEY"];
+    delete process.env["GOOGLE_MAPS_API_KEY"];
+    try {
+      const walkedKm = await calculateRouteDistanceKm([
+        { lat: 19.18621, lng: 73.03997 },
+        { lat: 19.19121, lng: 73.04297 },
+        { lat: 19.18621, lng: 73.03997 },
+      ]);
+      assert.ok(walkedKm > 1.0, `Expected > 1.0 km for 500m+ round-trip, got ${walkedKm}`);
+    } finally {
+      if (prevKey !== undefined) process.env["GOOGLE_MAPS_API_KEY"] = prevKey;
+    }
   });
 });

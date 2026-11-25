@@ -108,7 +108,7 @@ function determineConfidence(locationType: string): "high" | "medium" | "low" {
   }
 }
 
-function parseResult(result: GoogleGeocodeResult, allResults?: GoogleGeocodeResult[]): GeoLookupResult {
+export function parseGeocodeResult(result: GoogleGeocodeResult, allResults?: GoogleGeocodeResult[]): GeoLookupResult {
   const streetNumber = findComponentAcrossResults(result, allResults, "street_number");
   const route = findComponentAcrossResults(result, allResults, "route");
   const premise =
@@ -195,7 +195,7 @@ export async function forwardGeocode(address: string): Promise<GeoLookupResult |
   const first = body.results[0];
   if (body.status !== "OK" || !first) return null;
 
-  return parseResult(first, body.results);
+  return parseGeocodeResult(first, body.results);
 }
 
 export async function reverseGeocode(lat: number, lng: number): Promise<GeoLookupResult | null> {
@@ -214,7 +214,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeoLooku
   const first = body.results[0];
   if (body.status !== "OK" || !first) return null;
 
-  return parseResult(first, body.results);
+  return parseGeocodeResult(first, body.results);
 }
 
 export function isGpsAccuracyPoor(accuracy: number | undefined | null): boolean {
