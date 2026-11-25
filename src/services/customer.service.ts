@@ -459,7 +459,9 @@ export function createCustomerService(database: PrismaClient) {
       if (user.role === "SELLER") {
         where.sellerId = user.id;
       } else if (user.role === "MANAGER") {
-        const managerWhere: Prisma.CustomerWhereInput = { OR: [{ seller: { managerId: user.id } }, { sellerId: user.id }] };
+        const managerWhere: Prisma.CustomerWhereInput = {
+          OR: [{ seller: { managerId: user.id } }, { sellerId: user.id }, { createdById: user.id }],
+        };
 
         if (query.sellerId) {
           where.AND = [managerWhere, { sellerId: query.sellerId }];
@@ -514,7 +516,7 @@ export function createCustomerService(database: PrismaClient) {
         throw new HttpError(404, "Customer not found or outside assigned scope");
       }
       if (user.role === "MANAGER") {
-        if (customer.sellerId !== user.id && customer.seller.managerId !== user.id) {
+        if (customer.sellerId !== user.id && customer.seller.managerId !== user.id && customer.createdById !== user.id) {
           throw new HttpError(404, "Customer not found or outside assigned scope");
         }
       }

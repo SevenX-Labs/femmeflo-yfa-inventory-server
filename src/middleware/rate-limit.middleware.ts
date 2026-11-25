@@ -8,13 +8,19 @@ import type { Request, Response } from "express";
  */
 export const globalApiRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: process.env.NODE_ENV === "test" ? 10000 : 300, // 300 requests per 15 min in prod
+  limit: process.env.NODE_ENV === "test" ? 10000 : 2000, // Accommodates multi-user/NAT traffic without hitting spurious 429s
   standardHeaders: "draft-8",
   legacyHeaders: false,
   skip: (req: Request) => {
-    // Never throttle health and readiness monitoring probes
+    // Never throttle health, readiness, or lightweight realtime poll/stream heartbeats
     const path = req.path || req.originalUrl || "";
-    return path.endsWith("/health") || path.endsWith("/ready") || path === "/";
+    return (
+      path.endsWith("/health") ||
+      path.endsWith("/ready") ||
+      path.endsWith("/realtime/poll") ||
+      path.endsWith("/realtime/stream") ||
+      path === "/"
+    );
   },
   message: {
     success: false,

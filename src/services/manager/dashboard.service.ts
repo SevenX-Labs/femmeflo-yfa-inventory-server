@@ -9,8 +9,6 @@ export function createManagerDashboardService(database: PrismaClient) {
           { managerId: manager.id, role: "SELLER" },
           { id: manager.id },
         ],
-        ...(manager.state && { state: { equals: manager.state, mode: "insensitive" } }),
-        ...(manager.district && { district: { equals: manager.district, mode: "insensitive" } }),
       };
 
       const customerScope: Prisma.CustomerWhereInput = {
