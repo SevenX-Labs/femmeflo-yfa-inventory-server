@@ -406,6 +406,7 @@ export function createSellerSalesService(database: PrismaClient) {
           orderBy: [{ createdAt: "desc" }, { id: "asc" }],
           include: {
             customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
+            seller: { select: { id: true, name: true, phone: true } },
             invoice: { select: { id: true, number: true } },
             lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
           },
@@ -429,6 +430,7 @@ export function createSellerSalesService(database: PrismaClient) {
         where: { id },
         include: {
           customer: { select: { id: true, shopName: true, contactName: true, phone: true, state: true, district: true, village: true } },
+          seller: { select: { id: true, name: true, phone: true } },
           invoice: true,
           payments: true,
           lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },

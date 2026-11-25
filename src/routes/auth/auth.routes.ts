@@ -10,6 +10,7 @@ export function createAuthRoutes(auth: AuthService) {
   const controller = createAuthController(auth);
   const limit = rateLimit({
     windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === "production",
     message: { success: false, message: "Too many authentication attempts. Try again later" },
   });
   routes.post("/login", limit, controller.login);
@@ -30,6 +31,7 @@ export function createRoleAuthRoutes(auth: AuthService, role: "SUPER_ADMIN" | "M
   const controller = createAuthController(auth);
   const limit = rateLimit({
     windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === "production",
     message: { success: false, message: "Too many authentication attempts. Try again later" },
   });
   const roleLogin = role === "SUPER_ADMIN" ? controller.adminLogin : role === "MANAGER" ? controller.managerLogin : controller.sellerLogin;
