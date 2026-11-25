@@ -53,8 +53,10 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
     try {
       const user = response.locals.authUser as { id: string; role: string };
       const id = parseInput(idSchema, request.params["id"]);
-      const invoice = await database.invoice.findUnique({
-        where: { id },
+      const invoice = await database.invoice.findFirst({
+        where: {
+          OR: [{ id }, { saleId: id }],
+        },
         include: {
           sale: {
             include: {
