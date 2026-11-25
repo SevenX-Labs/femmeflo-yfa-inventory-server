@@ -64,14 +64,30 @@ async function googleMapsRouteKm(points: Coordinate[], apiKey: string): Promise<
   }
 }
 
+const STATIONARY_DEADBAND_KM = 0.05; // 50m GPS jitter threshold
+
+function collapseStationaryPoints(points: Coordinate[]): Coordinate[] {
+  if (points.length === 0) return [];
+  const filtered: Coordinate[] = [points[0]!];
+  for (let i = 1; i < points.length; i++) {
+    const prev = filtered[filtered.length - 1]!;
+    const curr = points[i]!;
+    if (haversineKm(prev, curr) >= STATIONARY_DEADBAND_KM) {
+      filtered.push(curr);
+    }
+  }
+  return filtered;
+}
+
 export async function calculateRouteDistanceKm(points: Coordinate[]): Promise<number> {
-  if (points.length < 2) return 0;
+  const cleanedPoints = collapseStationaryPoints(points);
+  if (cleanedPoints.length < 2) return 0;
 
   const apiKey = process.env["GOOGLE_MAPS_API_KEY"];
   if (apiKey) {
-    const km = await googleMapsRouteKm(points, apiKey);
+    const km = await googleMapsRouteKm(cleanedPoints, apiKey);
     if (km !== null) return Math.round(km * 100) / 100;
   }
 
-  return Math.round(haversineRouteKm(points) * 100) / 100;
+  return Math.round(haversineRouteKm(cleanedPoints) * 100) / 100;
 }
