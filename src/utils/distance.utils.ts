@@ -64,7 +64,7 @@ async function googleMapsRouteKm(points: Coordinate[], apiKey: string): Promise<
   }
 }
 
-const STATIONARY_DEADBAND_KM = 0.05; // 50m GPS jitter threshold
+const STATIONARY_DEADBAND_KM = 0.025; // 25m GPS jitter threshold
 
 function collapseStationaryPoints(points: Coordinate[]): Coordinate[] {
   if (points.length === 0) return [];
