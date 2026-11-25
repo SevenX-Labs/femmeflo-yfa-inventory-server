@@ -333,36 +333,44 @@ export function createSellerSalesService(database: PrismaClient) {
 
       // Broadcast real-time event for sales and inventory/approvals
       if (result.sale.status === "PENDING_APPROVAL") {
-        realtimeHub.broadcast({
+        realtimeHub.publish({
           type: "APPROVAL_UPDATE",
           actorId: sellerId,
           role: "SELLER",
           entityId: result.sale.id,
           action: "NEW_PENDING_SALE",
+          targetUserIds: [sellerId],
+          targetRoles: ["SUPER_ADMIN", "MANAGER"],
           data: { saleId: result.sale.id, sellerId, totalPaise: grandTotalPaise },
         });
-        realtimeHub.broadcast({
+        realtimeHub.publish({
           type: "SALE_STATUS_UPDATE",
           actorId: sellerId,
           role: "SELLER",
           entityId: result.sale.id,
           action: "CREATE_PENDING",
+          targetUserIds: [sellerId],
+          targetRoles: ["SUPER_ADMIN", "MANAGER"],
           data: { saleId: result.sale.id, sellerId, status: "PENDING_APPROVAL" },
         });
       } else {
-        realtimeHub.broadcast({
+        realtimeHub.publish({
           type: "SALE_STATUS_UPDATE",
           actorId: sellerId,
           role: "SELLER",
           entityId: result.sale.id,
           action: "CREATE_CONFIRMED",
+          targetUserIds: [sellerId],
+          targetRoles: ["SUPER_ADMIN", "MANAGER"],
           data: { saleId: result.sale.id, sellerId, status: "CONFIRMED" },
         });
-        realtimeHub.broadcast({
+        realtimeHub.publish({
           type: "INVENTORY_UPDATE",
           actorId: sellerId,
           role: "SELLER",
           action: "SALE_CONFIRMED_DEDUCTION",
+          targetUserIds: [sellerId],
+          targetRoles: ["SUPER_ADMIN", "MANAGER"],
           data: { sellerId, quantity: totalQuantity },
         });
       }
@@ -863,28 +871,34 @@ export function createSellerSalesService(database: PrismaClient) {
         });
       }
 
-      realtimeHub.broadcast({
+      realtimeHub.publish({
         type: "SALE_STATUS_UPDATE",
         actorId: sellerId,
         role: "SELLER",
         entityId: saleId,
         action: "UPDATE",
+        targetUserIds: [sellerId],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
         data: { saleId, sellerId, status: result.sale.status },
       });
       if (result.sale.status === "PENDING_APPROVAL") {
-        realtimeHub.broadcast({
+        realtimeHub.publish({
           type: "APPROVAL_UPDATE",
           actorId: sellerId,
           role: "SELLER",
           entityId: saleId,
           action: "RESUBMIT_FOR_APPROVAL",
+          targetUserIds: [sellerId],
+          targetRoles: ["SUPER_ADMIN", "MANAGER"],
         });
       }
-      realtimeHub.broadcast({
+      realtimeHub.publish({
         type: "INVENTORY_UPDATE",
         actorId: sellerId,
         role: "SELLER",
         action: "SALE_UPDATED",
+        targetUserIds: [sellerId],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
         data: { sellerId },
       });
 

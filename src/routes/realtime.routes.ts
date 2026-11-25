@@ -21,6 +21,7 @@ export function createRealtimeRoutes(auth: AuthService) {
    * Fallback for environments where SSE connections drop or long-lived connections are restricted
    */
   router.get("/poll", authenticate, (req, res) => {
+    const user = res.locals.authUser as { id?: string; role?: string } | undefined;
     const since = Number(req.query["since"]) || 0;
     const typesParam = req.query["types"];
     let types: RealtimeEventType[] | undefined;
@@ -29,7 +30,7 @@ export function createRealtimeRoutes(auth: AuthService) {
       types = typesParam.split(",") as RealtimeEventType[];
     }
 
-    const events = realtimeHub.getEventsSince(since, types);
+    const events = realtimeHub.getEventsSince(since, types, user);
     res.json({
       success: true,
       data: {

@@ -4,6 +4,7 @@ import { HttpError } from "../middleware/validation.js";
 import { uploadCustomerPhoto } from "./storage.service.js";
 import { forwardGeocode, isGpsAccuracyPoor, buildAddressQuery } from "./geocoding.service.js";
 import { istToUtcDate } from "../utils/timezone.utils.js";
+import { realtimeHub } from "./realtime/realtime.service.js";
 
 export type UserContext = {
   id: string;
@@ -218,6 +219,17 @@ export function createCustomerService(database: PrismaClient) {
         input.pincode,
       ].filter(Boolean).join(", ");
 
+      realtimeHub.publish({
+        type: "CUSTOMER_UPDATE",
+        actorId: user.id,
+        role: user.role,
+        entityId: customer.id,
+        action: "CREATE",
+        targetUserIds: [assignedSellerId, user.id],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
+        data: { customerId: customer.id, sellerId: assignedSellerId },
+      });
+
       return serializeCustomer({
         ...customer,
         shopNumber: input.shopNumber,
@@ -361,6 +373,16 @@ export function createCustomerService(database: PrismaClient) {
           })
         )
       );
+
+      realtimeHub.publish({
+        type: "CUSTOMER_UPDATE",
+        actorId: user.id,
+        role: user.role,
+        action: "CREATE_BULK",
+        targetUserIds: [defaultAssignedSellerId, user.id],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
+        data: { count: createdCustomers.length },
+      });
 
       return {
         count: createdCustomers.length,
@@ -600,6 +622,16 @@ export function createCustomerService(database: PrismaClient) {
           seller: { select: { id: true, name: true, phone: true } },
         },
       });
+      realtimeHub.publish({
+        type: "CUSTOMER_UPDATE",
+        actorId: user.id,
+        role: user.role,
+        entityId: updated.id,
+        action: "UPDATE",
+        targetUserIds: [updated.sellerId, user.id],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
+        data: { customerId: updated.id, sellerId: updated.sellerId },
+      });
       return serializeCustomer(updated);
     },
 
@@ -629,6 +661,17 @@ export function createCustomerService(database: PrismaClient) {
           category: { select: { id: true, name: true } },
           seller: { select: { id: true, name: true, phone: true } },
         },
+      });
+
+      realtimeHub.publish({
+        type: "CUSTOMER_UPDATE",
+        actorId: user.id,
+        role: user.role,
+        entityId: customer.id,
+        action: "UPLOAD_PHOTO",
+        targetUserIds: [customer.sellerId, user.id],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
+        data: { customerId: customer.id, sellerId: customer.sellerId },
       });
 
       return { customer: serializeCustomer(customer), photoUrl: uploadResult.publicUrl };

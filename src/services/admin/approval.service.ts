@@ -238,26 +238,33 @@ export function createAdminApprovalService(database: PrismaClient) {
       const invoice = pdfPath ? { ...result.invoice, pdfPath } : result.invoice;
 
       // Broadcast real-time updates for approvals, sale status, and stock deduction
-      realtimeHub.broadcast({
+      const targetUserIds = [result.updatedSale.sellerId, adminId];
+      realtimeHub.publish({
         type: "SALE_STATUS_UPDATE",
         actorId: adminId,
         role: "SUPER_ADMIN",
         entityId: saleId,
         action: "APPROVE",
+        targetUserIds,
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
         data: { saleId, sellerId: result.updatedSale.sellerId, status: "CONFIRMED" },
       });
-      realtimeHub.broadcast({
+      realtimeHub.publish({
         type: "APPROVAL_UPDATE",
         actorId: adminId,
         role: "SUPER_ADMIN",
         entityId: saleId,
         action: "APPROVE",
+        targetUserIds,
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
       });
-      realtimeHub.broadcast({
+      realtimeHub.publish({
         type: "INVENTORY_UPDATE",
         actorId: adminId,
         role: "SUPER_ADMIN",
         action: "SALE_APPROVED_DEDUCTION",
+        targetUserIds,
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
         data: { sellerId: result.updatedSale.sellerId },
       });
 
@@ -307,20 +314,25 @@ export function createAdminApprovalService(database: PrismaClient) {
       });
 
       // Broadcast real-time rejection
-      realtimeHub.broadcast({
+      const rejectTargets = [sale.sellerId, adminId];
+      realtimeHub.publish({
         type: "SALE_STATUS_UPDATE",
         actorId: adminId,
         role: "SUPER_ADMIN",
         entityId: saleId,
         action: "REJECT",
+        targetUserIds: rejectTargets,
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
         data: { saleId, sellerId: sale.sellerId, status: "REJECTED", reason: input.reason },
       });
-      realtimeHub.broadcast({
+      realtimeHub.publish({
         type: "APPROVAL_UPDATE",
         actorId: adminId,
         role: "SUPER_ADMIN",
         entityId: saleId,
         action: "REJECT",
+        targetUserIds: rejectTargets,
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
       });
 
       return updatedSale;

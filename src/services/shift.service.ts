@@ -63,12 +63,14 @@ export function createShiftService(database: PrismaClient) {
         include: { visits: true },
       });
 
-      realtimeHub.broadcast({
+      realtimeHub.publish({
         type: "SHIFT_UPDATE",
         actorId: sellerId,
         role: "SELLER",
         entityId: shift.id,
         action: "START_SHIFT",
+        targetUserIds: [sellerId],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
       });
 
       return shift;
@@ -110,12 +112,14 @@ export function createShiftService(database: PrismaClient) {
         include: { customer: { select: { id: true, shopName: true, phone: true } } },
       });
 
-      realtimeHub.broadcast({
+      realtimeHub.publish({
         type: "SHIFT_UPDATE",
         actorId: sellerId,
         role: "SELLER",
         entityId: shift.id,
         action: "CHECK_IN",
+        targetUserIds: [sellerId],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
         data: { shopName: input.shopName, visitId: visit.id },
       });
 
@@ -161,12 +165,14 @@ export function createShiftService(database: PrismaClient) {
         },
       });
 
-      realtimeHub.broadcast({
+      realtimeHub.publish({
         type: "SHIFT_UPDATE",
         actorId: sellerId,
         role: "SELLER",
         entityId: shift.id,
         action: "CHECK_OUT",
+        targetUserIds: [sellerId],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
         data: { shopName: visit.shopName, visitId: visit.id, saleDone: input.saleDone },
       });
 
@@ -230,12 +236,14 @@ export function createShiftService(database: PrismaClient) {
         },
       });
 
-      realtimeHub.broadcast({
+      realtimeHub.publish({
         type: "SHIFT_UPDATE",
         actorId: sellerId,
         role: "SELLER",
         entityId: shift.id,
         action: "END_SHIFT",
+        targetUserIds: [sellerId],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
         data: { totalDistanceKm },
       });
 

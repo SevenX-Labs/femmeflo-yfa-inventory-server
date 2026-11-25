@@ -5,6 +5,7 @@ import { HttpError } from "../../middleware/validation.js";
 import { getPeriodDateRange } from "../seller/sales.service.js";
 import { processInvoicePdf } from "../pdf.service.js";
 import { getCachedBusinessSettings } from "../settings.cache.js";
+import { realtimeHub } from "../realtime/realtime.service.js";
 
 export function createManagerSalesService(database: PrismaClient) {
   return {
@@ -396,6 +397,17 @@ export function createManagerSalesService(database: PrismaClient) {
           console.warn("Background PDF generation warning:", err);
         });
       }
+
+      realtimeHub.publish({
+        type: "SALE_STATUS_UPDATE",
+        actorId: manager.id,
+        role: "MANAGER",
+        entityId: result.sale.id,
+        action: "MANAGER_UPDATE",
+        targetUserIds: [result.sale.sellerId, manager.id],
+        targetRoles: ["SUPER_ADMIN", "MANAGER"],
+        data: { saleId: result.sale.id, sellerId: result.sale.sellerId, status: result.sale.status },
+      });
 
       return result.sale;
     },
