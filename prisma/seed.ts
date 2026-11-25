@@ -5,7 +5,7 @@ import { createDatabase } from "../src/config/database.js";
 const DEFAULT_INITIAL_PASSWORD = "femmeflo@2026";
 
 async function main() {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
   if (!databaseUrl) {
     console.error("DATABASE_URL is not set.");
     process.exit(1);
@@ -13,48 +13,58 @@ async function main() {
 
   const database = createDatabase(databaseUrl);
 
-  if (process.env.ALLOW_DATABASE_PURGE !== "true") {
-    console.log("[SAFETY GUARD] Database purge aborted. Live data is protected. Set ALLOW_DATABASE_PURGE=true if you explicitly wish to reset the database.");
+  const shouldPurge =
+    process.argv.includes("--clean") || process.env.ALLOW_DATABASE_PURGE === "true";
+
+  if (!shouldPurge) {
+    console.log("[SAFETY GUARD] Database purge aborted. Live data is protected. Run `npm run db:clean` if you explicitly wish to reset the database.");
     return;
   }
 
   try {
     console.log("Purging all data across all schemas/tables...");
 
-    await database.$transaction(async (tx) => {
-      // 1. Shift Tracking
-      await tx.shiftVisit.deleteMany({});
-      await tx.shift.deleteMany({});
+    // Warm up pooled TLS connection before starting interactive transaction
+    await database.$connect();
+    await database.$queryRaw`SELECT 1`;
 
-      // 2. Incentive System
-      await tx.incentivePayoutAllocation.deleteMany({});
-      await tx.incentivePayout.deleteMany({});
-      await tx.incentiveAdjustment.deleteMany({});
-      await tx.incentiveRateHistory.deleteMany({});
+    await database.$transaction(
+      async (tx) => {
+        // 1. Shift Tracking
+        await tx.shiftVisit.deleteMany({});
+        await tx.shift.deleteMany({});
 
-      // 3. Deliveries, Invoices & Notifications
-      await tx.delivery.deleteMany({});
-      await tx.notification.deleteMany({});
-      await tx.paymentRecord.deleteMany({});
-      await tx.invoice.deleteMany({});
+        // 2. Incentive System
+        await tx.incentivePayoutAllocation.deleteMany({});
+        await tx.incentivePayout.deleteMany({});
+        await tx.incentiveAdjustment.deleteMany({});
+        await tx.incentiveRateHistory.deleteMany({});
 
-      // 4. Sales & Inventory
-      await tx.saleLineItem.deleteMany({});
-      await tx.stockMovement.deleteMany({});
-      await tx.sale.deleteMany({});
-      await tx.productBalance.deleteMany({});
-      await tx.stockLocation.deleteMany({});
+        // 3. Deliveries, Invoices & Notifications
+        await tx.delivery.deleteMany({});
+        await tx.notification.deleteMany({});
+        await tx.paymentRecord.deleteMany({});
+        await tx.invoice.deleteMany({});
 
-      // 5. Products & Customers
-      await tx.customer.deleteMany({});
-      await tx.category.deleteMany({});
-      await tx.product.deleteMany({});
+        // 4. Sales & Inventory
+        await tx.saleLineItem.deleteMany({});
+        await tx.stockMovement.deleteMany({});
+        await tx.sale.deleteMany({});
+        await tx.productBalance.deleteMany({});
+        await tx.stockLocation.deleteMany({});
 
-      // 6. Auth, Users & Settings
-      await tx.passwordReset.deleteMany({});
-      await tx.user.deleteMany({});
-      await tx.businessSettings.deleteMany({});
-    });
+        // 5. Products & Customers
+        await tx.customer.deleteMany({});
+        await tx.category.deleteMany({});
+        await tx.product.deleteMany({});
+
+        // 6. Auth, Users & Settings
+        await tx.passwordReset.deleteMany({});
+        await tx.user.deleteMany({});
+        await tx.businessSettings.deleteMany({});
+      },
+      { maxWait: 20000, timeout: 120000 }
+    );
 
     console.log("All tables successfully cleared.");
 
@@ -90,6 +100,7 @@ async function main() {
 
     console.log("==========================================");
     console.log("Database reset complete. Super Admin seeded:");
+    console.log(`ID:       ${admin.id}`);
     console.log(`Email:    ${admin.email}`);
     console.log(`Phone:    ${admin.phone}`);
     console.log(`Password: ${adminPassword}`);
