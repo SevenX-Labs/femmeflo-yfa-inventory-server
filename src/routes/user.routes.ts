@@ -53,7 +53,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
     try {
       const user = response.locals.authUser as { id: string; role: string };
       const id = parseInput(idSchema, request.params["id"]);
-      const invoice = await database.invoice.findFirst({
+      let invoice = await database.invoice.findFirst({
         where: {
           OR: [{ id }, { saleId: id }],
         },
@@ -62,22 +62,103 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
             include: {
               customer: true,
               seller: { select: { id: true, name: true, phone: true, managerId: true } },
+              lineItems: { include: { product: { select: { name: true, sku: true } } } },
             },
           },
         },
       });
 
+      // Fallback: if caller passed a confirmed saleId whose Invoice record wasn't persisted yet, auto-create it cleanly
       if (!invoice) {
-        response.status(404).json({ success: false, message: "Invoice not found" });
-        return;
+        const sale = await database.sale.findUnique({
+          where: { id },
+          include: {
+            customer: true,
+            seller: { select: { id: true, name: true, phone: true, managerId: true } },
+            lineItems: { include: { product: { select: { name: true, sku: true } } } },
+          },
+        });
+
+        if (!sale || sale.status !== "CONFIRMED") {
+          response.status(404).json({ success: false, message: "Invoice not found" });
+          return;
+        }
+
+        // Check authorization before generating invoice
+        if (user.role === "SELLER" && sale.sellerId !== user.id) {
+          response.status(403).json({ success: false, message: "Forbidden" });
+          return;
+        }
+        if (user.role === "MANAGER" && sale.seller.managerId !== user.id && sale.sellerId !== user.id) {
+          response.status(403).json({ success: false, message: "Forbidden" });
+          return;
+        }
+
+        const totalQty =
+          sale.lineItems.length > 0
+            ? sale.lineItems.reduce((sum, li) => sum + li.quantity, 0)
+            : sale.quantity;
+        const unitPaise =
+          sale.unitPricePaise || (totalQty > 0 ? Math.round(sale.totalPaise / totalQty) : 0);
+        const invoiceNumber = `INV-${new Date(sale.confirmedAt || sale.createdAt).getFullYear()}-${sale.id.slice(0, 8).toUpperCase()}`;
+
+        const generatedSnapshot: InvoiceSnapshot = {
+          invoiceNumber,
+          saleId: sale.id,
+          date: (sale.confirmedAt || sale.createdAt).toISOString(),
+          customer: {
+            shopName: sale.customer?.shopName || "Customer Store",
+            contactName: sale.customer?.contactName || "Customer",
+            phone: sale.customer?.phone || "",
+            ...(sale.customer?.state ? { state: sale.customer.state } : {}),
+            ...(sale.customer?.district ? { district: sale.customer.district } : {}),
+            ...(sale.customer?.village ? { village: sale.customer.village } : {}),
+          },
+          seller: {
+            name: sale.seller?.name || "Seller",
+            phone: sale.seller?.phone || "",
+          },
+          quantity: totalQty,
+          unitPricePaise: unitPaise,
+          totalPaise: sale.totalPaise,
+          lineItems: sale.lineItems.map((li) => ({
+            productName: li.product?.name || "FemmeFlo",
+            productSku: li.product?.sku ?? null,
+            quantity: li.quantity,
+            unitPricePaise: li.unitPricePaise,
+            totalPaise: li.totalPaise,
+          })),
+          paymentMode: sale.paymentMode,
+        };
+
+        invoice = await database.invoice.create({
+          data: {
+            saleId: sale.id,
+            number: invoiceNumber,
+            snapshot: generatedSnapshot as any,
+          },
+          include: {
+            sale: {
+              include: {
+                customer: true,
+                seller: { select: { id: true, name: true, phone: true, managerId: true } },
+                lineItems: { include: { product: { select: { name: true, sku: true } } } },
+              },
+            },
+          },
+        });
       }
 
-      // Role authorization
+      // Role authorization (dual-role Manager can access both team sales and their own sales)
       if (user.role === "SELLER" && invoice.sale.sellerId !== user.id) {
         response.status(403).json({ success: false, message: "Forbidden" });
         return;
       }
-      if (user.role === "MANAGER" && invoice.sale.seller.managerId !== user.id) {
+      if (
+        user.role === "MANAGER" &&
+        invoice.sale.seller.managerId !== user.id &&
+        invoice.sale.sellerId !== user.id
+      ) {
         response.status(403).json({ success: false, message: "Forbidden" });
         return;
       }
@@ -92,9 +173,9 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
             shopName: invoice.sale?.customer?.shopName || "Customer Store",
             contactName: invoice.sale?.customer?.contactName || "Customer",
             phone: invoice.sale?.customer?.phone || "",
-            state: invoice.sale?.customer?.state,
-            district: invoice.sale?.customer?.district,
-            village: invoice.sale?.customer?.village,
+            ...(invoice.sale?.customer?.state ? { state: invoice.sale.customer.state } : {}),
+            ...(invoice.sale?.customer?.district ? { district: invoice.sale.customer.district } : {}),
+            ...(invoice.sale?.customer?.village ? { village: invoice.sale.customer.village } : {}),
           },
           seller: {
             name: invoice.sale?.seller?.name || "Seller",
@@ -103,6 +184,13 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
           quantity: invoice.sale?.quantity || 0,
           unitPricePaise: invoice.sale?.unitPricePaise || 0,
           totalPaise: invoice.sale?.totalPaise || 0,
+          lineItems: invoice.sale?.lineItems?.map((li) => ({
+            productName: li.product?.name || "FemmeFlo",
+            productSku: li.product?.sku ?? null,
+            quantity: li.quantity,
+            unitPricePaise: li.unitPricePaise,
+            totalPaise: li.totalPaise,
+          })),
           paymentMode: invoice.sale?.paymentMode || "CASH",
         };
       }

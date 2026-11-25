@@ -107,7 +107,10 @@ model User {
   shifts               Shift[]                @relation("SellerShifts")
 
   @@index([managerId])
+  @@index([managerId, active])
   @@index([role, active])
+  @@index([role, createdAt])
+  @@index([name])
   @@index([employeeCode])
   @@index([isSeller])
 }
@@ -153,6 +156,10 @@ model Customer {
   @@index([sellerId, createdAt])
   @@index([sellerId, active])
   @@index([sellerId])
+  @@index([createdById])
+  @@index([active, createdAt])
+  @@index([shopName])
+  @@index([contactName])
   @@index([state, district, village])
   @@index([categoryId])
   @@index([pincode])
@@ -175,6 +182,7 @@ model Product {
   movements         StockMovement[]
 
   @@index([active])
+  @@index([active, name])
 }
 
 model ProductBalance {
@@ -278,8 +286,12 @@ model Sale {
   shiftVisits           ShiftVisit[]
 
   @@index([sellerId, createdAt])
+  @@index([sellerId, status, createdAt])
   @@index([status, createdAt])
+  @@index([status, paymentMode, createdAt])
   @@index([customerId])
+  @@index([customerId, createdAt])
+  @@index([decidedById])
 }
 
 model SaleLineItem {
@@ -318,6 +330,8 @@ model Invoice {
   pdfPath        String?
   createdAt      DateTime @default(now())
   deliveries     Delivery[]
+
+  @@index([createdAt])
 }
 
 model Notification {
@@ -333,6 +347,8 @@ model Notification {
   deliveries  Delivery[]
 
   @@index([recipientId, createdAt])
+  @@index([recipientId, readAt, createdAt])
+  @@index([saleId])
 }
 
 model Delivery {
@@ -453,6 +469,8 @@ model Shift {
   updatedAt       DateTime    @updatedAt
 
   @@index([sellerId, startTime])
+  @@index([sellerId, status, startTime])
+  @@index([status, startTime])
   @@index([startTime])
   @@index([status])
 }
@@ -477,6 +495,8 @@ model ShiftVisit {
   createdAt        DateTime  @default(now())
 
   @@index([shiftId])
+  @@index([shiftId, checkInTime])
   @@index([customerId])
   @@index([saleId])
+  @@index([shopName])
 }

@@ -1,27 +1,16 @@
 import { rateLimit } from "express-rate-limit";
-import type { Request, Response } from "express";
+
+const DISABLE_RATE_LIMIT = () => true;
 
 /**
- * Global API Rate Limiter
- * Protects all /api/v1 endpoints against DDoS, scrapers, and denial of service.
- * Excludes health and readiness check probes.
+ * Global API Rate Limiter (disabled per user requirement: no request throttling)
  */
 export const globalApiRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: process.env.NODE_ENV === "test" ? 10000 : 2000, // Accommodates multi-user/NAT traffic without hitting spurious 429s
+  windowMs: 15 * 60 * 1000,
+  limit: 100000,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  skip: (req: Request) => {
-    // Never throttle health, readiness, or lightweight realtime poll/stream heartbeats
-    const path = req.path || req.originalUrl || "";
-    return (
-      path.endsWith("/health") ||
-      path.endsWith("/ready") ||
-      path.endsWith("/realtime/poll") ||
-      path.endsWith("/realtime/stream") ||
-      path === "/"
-    );
-  },
+  skip: DISABLE_RATE_LIMIT,
   message: {
     success: false,
     message: "Too many requests from this IP. Please try again after 15 minutes.",
@@ -29,14 +18,14 @@ export const globalApiRateLimiter = rateLimit({
 });
 
 /**
- * Strict Rate Limiter for Authentication & Password Operations
- * Defends against brute-force password cracking and credential stuffing.
+ * Auth Limiter (disabled for operational continuity; route-level auth limiter remains on login endpoints)
  */
 export const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 20, // 20 attempts per 15 min
+  windowMs: 15 * 60 * 1000,
+  limit: 100000,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  skip: DISABLE_RATE_LIMIT,
   message: {
     success: false,
     message: "Too many authentication attempts. Try again later",
@@ -44,14 +33,14 @@ export const authRateLimiter = rateLimit({
 });
 
 /**
- * File Upload Rate Limiter
- * Mitigates storage and memory flooding on customer storefront photo uploads.
+ * File Upload Rate Limiter (disabled per user requirement)
  */
 export const uploadRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: process.env.NODE_ENV === "test" ? 1000 : 40, // 40 uploads per 15 min
+  windowMs: 15 * 60 * 1000,
+  limit: 100000,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  skip: DISABLE_RATE_LIMIT,
   message: {
     success: false,
     message: "Too many file upload requests. Please wait a few minutes before uploading again.",
@@ -59,14 +48,14 @@ export const uploadRateLimiter = rateLimit({
 });
 
 /**
- * Report & Analytics Export Rate Limiter
- * Protects memory-heavy CSV, XLSX, and JSON generation queries.
+ * Report & Analytics Export Rate Limiter (disabled per user requirement)
  */
 export const reportExportRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  limit: process.env.NODE_ENV === "test" ? 1000 : 30, // 30 heavy export requests per minute
+  windowMs: 60 * 1000,
+  limit: 100000,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  skip: DISABLE_RATE_LIMIT,
   message: {
     success: false,
     message: "Too many report export requests. Please wait a moment before exporting again.",
@@ -74,14 +63,14 @@ export const reportExportRateLimiter = rateLimit({
 });
 
 /**
- * Write / Mutation Rate Limiter
- * Applied to high-frequency state-changing operations (sales creation, approvals, stock movements).
+ * Write / Mutation Rate Limiter (disabled per user requirement)
  */
 export const writeMutationRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  limit: process.env.NODE_ENV === "test" ? 5000 : 120, // 120 mutations per minute
+  windowMs: 60 * 1000,
+  limit: 100000,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  skip: DISABLE_RATE_LIMIT,
   message: {
     success: false,
     message: "High transaction volume detected. Please slow down your requests.",

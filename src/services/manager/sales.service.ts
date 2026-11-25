@@ -26,12 +26,16 @@ export function createManagerSalesService(database: PrismaClient) {
       if (dateRange) where.createdAt = dateRange;
 
       if (query.search) {
-        where.customer = {
-          OR: [
-            { shopName: { contains: query.search, mode: "insensitive" } },
-            { contactName: { contains: query.search, mode: "insensitive" } },
-          ],
-        };
+        where.AND = [
+          {
+            OR: [
+              { customer: { shopName: { contains: query.search, mode: "insensitive" } } },
+              { customer: { contactName: { contains: query.search, mode: "insensitive" } } },
+              { seller: { name: { contains: query.search, mode: "insensitive" } } },
+              { invoice: { number: { contains: query.search, mode: "insensitive" } } },
+            ],
+          },
+        ];
       }
 
       const [total, items] = await Promise.all([

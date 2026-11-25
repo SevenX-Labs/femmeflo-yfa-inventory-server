@@ -13,12 +13,11 @@ export function createAdminApprovalService(database: PrismaClient) {
       if (query.sellerId) where.sellerId = query.sellerId;
       if (query.customerId) where.customerId = query.customerId;
       if (query.search) {
-        where.customer = {
-          OR: [
-            { shopName: { contains: query.search, mode: "insensitive" } },
-            { contactName: { contains: query.search, mode: "insensitive" } },
-          ],
-        };
+        where.OR = [
+          { customer: { shopName: { contains: query.search, mode: "insensitive" } } },
+          { customer: { contactName: { contains: query.search, mode: "insensitive" } } },
+          { seller: { name: { contains: query.search, mode: "insensitive" } } },
+        ];
       }
 
       const [total, items] = await Promise.all([
