@@ -144,10 +144,11 @@ test("GPS / Geolocation Validation Unit Tests", async (t) => {
     assert.equal(parsed.pincode, "400612");
   });
 
-  await t.test("calculateRouteDistanceKm collapses indoor jitter <25m and sums 500m+ multi-stop hops", async () => {
+  await t.test("calculateRouteDistanceKm collapses indoor/stationary drift (<60m) to 0 km and sums 500m+ multi-stop hops", async () => {
     const stationaryKm = await calculateRouteDistanceKm([
       { lat: 19.18621, lng: 73.03997 },
-      { lat: 19.18625, lng: 73.04002 },
+      { lat: 19.18637, lng: 73.03996 },
+      { lat: 19.18655, lng: 73.04015 },
     ]);
     assert.equal(stationaryKm, 0);
 

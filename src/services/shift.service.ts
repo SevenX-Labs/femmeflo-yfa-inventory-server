@@ -19,17 +19,23 @@ type VisitWithTiming = {
 function enrichShiftWithTiming<T extends { startTime: Date; endTime: Date | null; visits: VisitWithTiming[] }>(
   shift: T
 ) {
-  const totalShiftMins = shift.endTime
-    ? Math.round((shift.endTime.getTime() - shift.startTime.getTime()) / 60000 * 100) / 100
+  const totalSeconds = shift.endTime
+    ? Math.max(0, Math.floor((shift.endTime.getTime() - shift.startTime.getTime()) / 1000))
     : null;
-  const totalVisitMins = shift.visits.reduce(
-    (sum, v) => sum + (v.durationMins ?? 0),
-    0
-  );
-  const totalVisitMinsRounded = Math.round(totalVisitMins * 100) / 100;
-  const travelMins = totalShiftMins !== null
-    ? Math.round((totalShiftMins - totalVisitMinsRounded) * 100) / 100
-    : null;
+  const totalShiftMins = totalSeconds !== null ? Math.round((totalSeconds / 60) * 100) / 100 : null;
+
+  const rawVisitSeconds = shift.visits.reduce((sum, v) => {
+    if (v.checkOutTime) {
+      return sum + Math.max(0, Math.floor((v.checkOutTime.getTime() - v.checkInTime.getTime()) / 1000));
+    }
+    return sum + Math.round((v.durationMins ?? 0) * 60);
+  }, 0);
+  const clampedVisitSeconds =
+    totalSeconds !== null ? Math.min(totalSeconds, rawVisitSeconds) : rawVisitSeconds;
+  const totalVisitMinsRounded = Math.round((clampedVisitSeconds / 60) * 100) / 100;
+  const travelSeconds = totalSeconds !== null ? Math.max(0, totalSeconds - clampedVisitSeconds) : null;
+  const travelMins =
+    travelSeconds !== null ? Math.round((travelSeconds / 60) * 100) / 100 : null;
 
   return {
     ...shift,
@@ -37,6 +43,9 @@ function enrichShiftWithTiming<T extends { startTime: Date; endTime: Date | null
       totalShiftMins,
       totalVisitMins: totalVisitMinsRounded,
       travelMins,
+      totalSeconds,
+      totalVisitSeconds: clampedVisitSeconds,
+      travelSeconds,
       visitCount: shift.visits.length,
     },
   };
