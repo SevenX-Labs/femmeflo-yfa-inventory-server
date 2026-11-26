@@ -79,11 +79,11 @@ export function createAdminApprovalService(database: PrismaClient) {
           throw new HttpError(404, "Stock location for seller not found");
         }
 
-        const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise;
+        const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise ?? 100;
         const totalQuantity = sale.lineItems.length > 0
           ? sale.lineItems.reduce((sum, li) => sum + li.quantity, 0)
           : sale.quantity;
-        const incentiveAmountPaise = incentiveRatePaise !== null && incentiveRatePaise !== undefined ? totalQuantity * incentiveRatePaise : null;
+        const incentiveAmountPaise = totalQuantity * incentiveRatePaise;
 
         if (sale.lineItems.length > 0) {
           const pIds = sale.lineItems.map((li) => li.productId);

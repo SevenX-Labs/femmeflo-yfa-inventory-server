@@ -15,6 +15,8 @@ export type BusinessSettingsRecord = {
   updatedAt: Date;
 };
 
+export const DEFAULT_INCENTIVE_RATE_PAISE = 100; // ₹1.00 per packet default
+
 let cachedSettings: BusinessSettingsRecord | null = null;
 let cacheExpiresAt = 0;
 const SETTINGS_CACHE_TTL_MS = 60_000; // 60 seconds cache
@@ -33,15 +35,20 @@ export async function getCachedBusinessSettings(
       data: {
         id: 1,
         minimumPricePaise: 2500,
-        incentiveRatePaise: null,
+        incentiveRatePaise: DEFAULT_INCENTIVE_RATE_PAISE,
         companyName: "MASAKO ENTERPRISES PRIVATE LIMITED",
       },
     });
   }
 
-  cachedSettings = settings;
+  const normalized: BusinessSettingsRecord = {
+    ...settings,
+    incentiveRatePaise: settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE,
+  };
+
+  cachedSettings = normalized;
   cacheExpiresAt = now + SETTINGS_CACHE_TTL_MS;
-  return settings;
+  return normalized;
 }
 
 export function invalidateBusinessSettingsCache(): void {

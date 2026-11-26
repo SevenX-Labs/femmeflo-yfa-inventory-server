@@ -1,5 +1,6 @@
 import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
 import type { DashboardFilterInput } from "../../controller/dashboard.validation.js";
+import { DEFAULT_INCENTIVE_RATE_PAISE, getCachedBusinessSettings } from "../settings.cache.js";
 
 export function createAdminDashboardService(database: PrismaClient) {
   return {
@@ -25,11 +26,20 @@ export function createAdminDashboardService(database: PrismaClient) {
       if (filters.district) userWhere.district = { equals: filters.district, mode: "insensitive" };
       if (filters.village) userWhere.village = { equals: filters.village, mode: "insensitive" };
 
-      const [salesAggregate, totalManagers, totalSellers, totalShops, distinctStatesResult, locations] = await Promise.all([
+      const [salesAggregate, nullIncentiveSales, settings, totalManagers, totalSellers, totalShops, distinctStatesResult, locations] = await Promise.all([
         database.sale.aggregate({
           _sum: { quantity: true, totalPaise: true, incentiveAmountPaise: true },
           where: salesWhere,
         }),
+        database.sale.findMany({
+          where: { ...salesWhere, incentiveAmountPaise: null },
+          select: {
+            quantity: true,
+            incentiveRatePaise: true,
+            seller: { select: { incentiveRatePaise: true } },
+          },
+        }),
+        getCachedBusinessSettings(database),
         database.user.count({ where: { ...userWhere, role: "MANAGER", active: true } }),
         database.user.count({ where: { ...userWhere, role: "SELLER", active: true } }),
         database.customer.count({ where: { ...customerWhere, active: true } }),
@@ -40,9 +50,14 @@ export function createAdminDashboardService(database: PrismaClient) {
         database.stockLocation.findMany(),
       ]);
 
+      const defaultRatePaise = settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
+      const fallbackIncentivePaise = nullIncentiveSales.reduce(
+        (sum, s) => sum + s.quantity * (s.incentiveRatePaise ?? s.seller?.incentiveRatePaise ?? defaultRatePaise),
+        0
+      );
       const totalPacketsSold = salesAggregate._sum.quantity ?? 0;
       const totalEarningsPaise = salesAggregate._sum.totalPaise ?? 0;
-      const totalIncentivePaise = salesAggregate._sum.incentiveAmountPaise ?? 0;
+      const totalIncentivePaise = (salesAggregate._sum.incentiveAmountPaise ?? 0) + fallbackIncentivePaise;
       const totalStates = distinctStatesResult.length;
 
       let totalInventory = 0;

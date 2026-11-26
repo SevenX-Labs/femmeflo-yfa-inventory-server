@@ -93,7 +93,8 @@ export function calculateUserIncentiveSummary(
   sales: RawSaleRecord[],
   adjustments: RawAdjustmentRecord[],
   payouts: RawPayoutRecord[],
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  fallbackRatePaise: number = 100
 ): UserIncentiveSummary {
   const { currentYear, currentMonth, prevYear, prevMonth } = getCurrentAndPreviousPeriod(referenceDate);
 
@@ -142,7 +143,8 @@ export function calculateUserIncentiveSummary(
     const m = d.getMonth() + 1;
     const bucket = getBucket(y, m);
 
-    const amount = sale.incentiveAmountPaise ?? (sale.quantity * (sale.incentiveRatePaise ?? 0));
+    const resolvedRate = sale.incentiveRatePaise ?? fallbackRatePaise;
+    const amount = sale.incentiveAmountPaise ?? (sale.quantity * resolvedRate);
     bucket.confirmedPackets += sale.quantity;
     bucket.salesIncentivePaise += amount;
 

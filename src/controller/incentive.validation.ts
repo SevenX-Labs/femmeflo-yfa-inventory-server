@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const updateIncentiveSettingsSchema = z.strictObject({
   incentiveRatePaise: z.coerce.number().int().min(0).nullable().optional(),
+  applyToUnpaid: z.boolean().optional(),
   minimumPricePaise: z.coerce.number().int().positive().optional(),
   companyName: z.string().trim().min(1).max(150).optional(),
   companyGst: z.string().trim().max(30).optional(),
@@ -18,6 +19,7 @@ export const updateUserRateSchema = z.object({
   ratePaise: z.coerce.number().int().min(0, "Incentive rate must be a non-negative amount in paise"),
   effectiveDate: z.string().optional(),
   reason: z.string().trim().max(300, "Reason must not exceed 300 characters").optional(),
+  applyToUnpaid: z.boolean().optional(),
 });
 
 export type UpdateUserRateInput = z.infer<typeof updateUserRateSchema>;

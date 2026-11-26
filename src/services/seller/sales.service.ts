@@ -200,9 +200,9 @@ export function createSellerSalesService(database: PrismaClient) {
           }
         }
 
-        // Calculate incentive
-        const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise;
-        const incentiveAmountPaise = incentiveRatePaise !== null && incentiveRatePaise !== undefined ? totalQuantity * incentiveRatePaise : null;
+        // Calculate incentive (default ₹1.00 = 100 paise/pkt when unset)
+        const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise ?? 100;
+        const incentiveAmountPaise = totalQuantity * incentiveRatePaise;
 
         // Deduct per-product stock + location total concurrently
         await Promise.all([

@@ -4,6 +4,7 @@ import {
   calculateUserIncentiveSummary,
   getCurrentAndPreviousPeriod,
 } from "../incentive/incentive.calculator.js";
+import { DEFAULT_INCENTIVE_RATE_PAISE, getCachedBusinessSettings } from "../settings.cache.js";
 
 export function createManagerIncentiveService(database: PrismaClient) {
   return {
@@ -11,8 +12,13 @@ export function createManagerIncentiveService(database: PrismaClient) {
       const now = new Date();
       const { currentYear, currentMonth, prevYear, prevMonth } = getCurrentAndPreviousPeriod(now);
 
-      // 1. Fetch Manager's personal records (Personal Earnings)
-      const [personalSales, personalAdjustments, personalPayouts] = await Promise.all([
+      // 1. Fetch BusinessSettings, Manager's rate & Manager's personal records (Personal Earnings)
+      const [settings, managerRecord, personalSales, personalAdjustments, personalPayouts] = await Promise.all([
+        getCachedBusinessSettings(database),
+        database.user.findUnique({
+          where: { id: manager.id },
+          select: { incentiveRatePaise: true },
+        }),
         database.sale.findMany({
           where: { sellerId: manager.id, status: "CONFIRMED" },
           orderBy: { confirmedAt: "desc" },
@@ -54,16 +60,23 @@ export function createManagerIncentiveService(database: PrismaClient) {
         }),
       ]);
 
+      const defaultRatePaise = settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
+      const personalRatePaise = managerRecord?.incentiveRatePaise ?? defaultRatePaise;
+
       const personalSummary = calculateUserIncentiveSummary(
         manager.id,
         personalSales,
         personalAdjustments,
         personalPayouts,
-        now
+        now,
+        personalRatePaise
       );
 
       const personal = {
         summary: {
+          effectiveRatePaise: personalRatePaise,
+          ratePerPacketPaise: personalRatePaise,
+          ratePerPacketRupees: personalRatePaise / 100,
           totalPacketsSold: personalSummary.totalConfirmedPackets,
           totalIncentivePaise: personalSummary.salesIncentivePaise,
           totalIncentiveRupees: personalSummary.salesIncentivePaise / 100,
@@ -83,14 +96,17 @@ export function createManagerIncentiveService(database: PrismaClient) {
           olderPendingPaise: personalSummary.olderPendingPaise,
           olderPendingRupees: personalSummary.olderPendingPaise / 100,
         },
-        items: personalSales.map((s) => ({
-          saleId: s.id,
-          date: s.confirmedAt ?? s.createdAt,
-          customer: s.customer,
-          quantity: s.quantity,
-          incentiveRatePaise: s.incentiveRatePaise,
-          incentiveAmountPaise: s.incentiveAmountPaise ?? (s.quantity * (s.incentiveRatePaise ?? 0)),
-        })),
+        items: personalSales.map((s) => {
+          const itemRate = s.incentiveRatePaise ?? personalRatePaise;
+          return {
+            saleId: s.id,
+            date: s.confirmedAt ?? s.createdAt,
+            customer: s.customer,
+            quantity: s.quantity,
+            incentiveRatePaise: itemRate,
+            incentiveAmountPaise: s.incentiveAmountPaise ?? s.quantity * itemRate,
+          };
+        }),
         months: personalSummary.periods,
         adjustments: personalAdjustments,
         payouts: personalPayouts,
@@ -178,8 +194,16 @@ export function createManagerIncentiveService(database: PrismaClient) {
           const sales = teamSalesByUser.get(seller.id) ?? [];
           const adjustments = teamAdjByUser.get(seller.id) ?? [];
           const payouts = teamPayoutsByUser.get(seller.id) ?? [];
+          const memberRatePaise = seller.incentiveRatePaise ?? defaultRatePaise;
 
-          const summary = calculateUserIncentiveSummary(seller.id, sales, adjustments, payouts, now);
+          const summary = calculateUserIncentiveSummary(
+            seller.id,
+            sales,
+            adjustments,
+            payouts,
+            now,
+            memberRatePaise
+          );
           const territory = [seller.village, seller.district, seller.state].filter(Boolean).join(", ") || "Unassigned";
 
           return {
@@ -187,6 +211,8 @@ export function createManagerIncentiveService(database: PrismaClient) {
             sellerName: seller.name,
             phone: seller.phone,
             territory,
+            ratePerPacketPaise: memberRatePaise,
+            ratePerPacketRupees: memberRatePaise / 100,
             confirmedPackets: summary.totalConfirmedPackets,
             earnedPaise: summary.salesIncentivePaise,
             earnedRupees: summary.salesIncentivePaise / 100,

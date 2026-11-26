@@ -1,12 +1,18 @@
 import type { PrismaClient } from "../../generated/prisma/client.js";
 import { calculateUserIncentiveSummary } from "../incentive/incentive.calculator.js";
+import { DEFAULT_INCENTIVE_RATE_PAISE, getCachedBusinessSettings } from "../settings.cache.js";
 
 export function createSellerIncentiveService(database: PrismaClient) {
   return {
     getIncentives: async (sellerId: string) => {
       const now = new Date();
 
-      const [sales, adjustments, payouts] = await Promise.all([
+      const [settings, sellerUser, sales, adjustments, payouts] = await Promise.all([
+        getCachedBusinessSettings(database),
+        database.user.findUnique({
+          where: { id: sellerId },
+          select: { incentiveRatePaise: true },
+        }),
         database.sale.findMany({
           where: { sellerId, status: "CONFIRMED" },
           orderBy: { confirmedAt: "desc" },
@@ -48,22 +54,38 @@ export function createSellerIncentiveService(database: PrismaClient) {
         }),
       ]);
 
-      const summary = calculateUserIncentiveSummary(sellerId, sales, adjustments, payouts, now);
+      const effectiveRatePaise =
+        sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
+      const summary = calculateUserIncentiveSummary(
+        sellerId,
+        sales,
+        adjustments,
+        payouts,
+        now,
+        effectiveRatePaise
+      );
 
       const items = sales.map((sale) => {
-        const amount = sale.incentiveAmountPaise ?? (sale.quantity * (sale.incentiveRatePaise ?? 0));
+        const resolvedRate = sale.incentiveRatePaise ?? effectiveRatePaise;
+        const amount = sale.incentiveAmountPaise ?? sale.quantity * resolvedRate;
         return {
           saleId: sale.id,
           date: sale.confirmedAt ?? sale.createdAt,
           customer: sale.customer,
           quantity: sale.quantity,
-          incentiveRatePaise: sale.incentiveRatePaise,
+          incentiveRatePaise: resolvedRate,
           incentiveAmountPaise: amount,
         };
       });
 
       return {
+        effectiveRatePaise,
+        ratePerPacketPaise: effectiveRatePaise,
+        ratePerPacketRupees: effectiveRatePaise / 100,
         summary: {
+          effectiveRatePaise,
+          ratePerPacketPaise: effectiveRatePaise,
+          ratePerPacketRupees: effectiveRatePaise / 100,
           totalPacketsSold: summary.totalConfirmedPackets,
           totalIncentivePaise: summary.salesIncentivePaise,
           totalIncentiveRupees: summary.salesIncentivePaise / 100,

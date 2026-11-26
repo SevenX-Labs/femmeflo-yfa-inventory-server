@@ -258,8 +258,8 @@ export function createAdminSalesService(database: PrismaClient) {
             companyEmail: null,
             invoiceTerms: null,
           };
-          const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? resolvedSettings.incentiveRatePaise;
-          const incentiveAmountPaise = incentiveRatePaise != null ? newQty * incentiveRatePaise : null;
+          const incentiveRatePaise = sellerUser?.incentiveRatePaise ?? resolvedSettings.incentiveRatePaise ?? 100;
+          const incentiveAmountPaise = newQty * incentiveRatePaise;
 
           if (input.unitPricePaise !== undefined && sale.lineItems.length > 0) {
             await Promise.all(

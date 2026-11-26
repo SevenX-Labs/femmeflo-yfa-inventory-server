@@ -13,7 +13,11 @@ import {
   getCurrentAndPreviousPeriod,
   type PeriodEarning,
 } from "../incentive/incentive.calculator.js";
-import { getCachedBusinessSettings, invalidateBusinessSettingsCache } from "../settings.cache.js";
+import {
+  DEFAULT_INCENTIVE_RATE_PAISE,
+  getCachedBusinessSettings,
+  invalidateBusinessSettingsCache,
+} from "../settings.cache.js";
 
 export function createAdminIncentiveService(database: PrismaClient) {
   async function getOrCreateSettings() {
@@ -134,10 +138,18 @@ export function createAdminIncentiveService(database: PrismaClient) {
           const sales = salesByUser.get(user.id) ?? [];
           const adjustments = adjustmentsByUser.get(user.id) ?? [];
           const payouts = payoutsByUser.get(user.id) ?? [];
+          const effectiveRatePaise =
+            user.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
 
-          const summary = calculateUserIncentiveSummary(user.id, sales, adjustments, payouts, now);
+          const summary = calculateUserIncentiveSummary(
+            user.id,
+            sales,
+            adjustments,
+            payouts,
+            now,
+            effectiveRatePaise
+          );
           const territory = [user.village, user.district, user.state].filter(Boolean).join(", ") || "Unassigned";
-          const effectiveRatePaise = user.incentiveRatePaise ?? settings.incentiveRatePaise ?? 0;
 
           return {
             seller: {
@@ -151,17 +163,20 @@ export function createAdminIncentiveService(database: PrismaClient) {
             },
             sellerId: user.id,
             sellerName: user.name,
+            phone: user.phone,
             role: user.role,
             manager: user.manager,
             territory,
             isCustomRate: user.incentiveRatePaise !== null && user.incentiveRatePaise !== undefined,
             ratePerPacketPaise: effectiveRatePaise,
+            effectiveRatePaise,
             ratePerPacketRupees: effectiveRatePaise / 100,
             confirmedPackets: summary.totalConfirmedPackets,
             totalConfirmedPackets: summary.totalConfirmedPackets,
             totalIncentivePaise: summary.salesIncentivePaise,
             totalIncentiveRupees: summary.salesIncentivePaise / 100,
             earnedPaise: summary.salesIncentivePaise,
+            totalEarnedPaise: summary.salesIncentivePaise,
             additionsPaise: summary.additionsPaise,
             deductionsPaise: summary.deductionsPaise,
             adjustedEntitlementPaise: summary.adjustedEntitlementPaise,
@@ -313,8 +328,16 @@ export function createAdminIncentiveService(database: PrismaClient) {
         }),
       ]);
 
-      const summary = calculateUserIncentiveSummary(user.id, sales, adjustments, payouts, now);
-      const effectiveRatePaise = user.incentiveRatePaise ?? settings.incentiveRatePaise ?? 0;
+      const effectiveRatePaise =
+        user.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
+      const summary = calculateUserIncentiveSummary(
+        user.id,
+        sales,
+        adjustments,
+        payouts,
+        now,
+        effectiveRatePaise
+      );
 
       return {
         user: {
@@ -334,7 +357,11 @@ export function createAdminIncentiveService(database: PrismaClient) {
           effectiveRateRupees: effectiveRatePaise / 100,
           isCustomRate: user.incentiveRatePaise !== null && user.incentiveRatePaise !== undefined,
         },
-        summary,
+        summary: {
+          ...summary,
+          earnedPaise: summary.salesIncentivePaise,
+          paidPaise: summary.totalPaidPaise,
+        },
         rateHistory: user.incentiveRateHistory,
         adjustments,
         payouts,
@@ -343,8 +370,9 @@ export function createAdminIncentiveService(database: PrismaClient) {
           confirmedAt: sale.confirmedAt ?? sale.createdAt,
           customer: sale.customer,
           quantity: sale.quantity,
-          incentiveRatePaise: sale.incentiveRatePaise,
-          incentiveAmountPaise: sale.incentiveAmountPaise,
+          incentiveRatePaise: sale.incentiveRatePaise ?? effectiveRatePaise,
+          incentiveAmountPaise:
+            sale.incentiveAmountPaise ?? sale.quantity * (sale.incentiveRatePaise ?? effectiveRatePaise),
         })),
       };
     },
@@ -367,46 +395,79 @@ export function createAdminIncentiveService(database: PrismaClient) {
       const effectiveDate = input.effectiveDate ? new Date(input.effectiveDate) : new Date();
 
       return database.$transaction(async (tx) => {
-        // Record in history audit table
-        const history = await tx.incentiveRateHistory.create({
-          data: {
-            userId,
-            previousRatePaise,
-            newRatePaise: input.ratePaise,
-            effectiveDate,
-            reason: input.reason ?? null,
-            changedById: adminId,
-          },
-        });
+        const [history, updatedUser, paidCount] = await Promise.all([
+          tx.incentiveRateHistory.create({
+            data: {
+              userId,
+              previousRatePaise,
+              newRatePaise: input.ratePaise,
+              effectiveDate,
+              reason: input.reason ?? null,
+              changedById: adminId,
+            },
+          }),
+          tx.user.update({
+            where: { id: userId },
+            data: { incentiveRatePaise: input.ratePaise },
+            select: {
+              id: true,
+              name: true,
+              role: true,
+              incentiveRatePaise: true,
+            },
+          }),
+          tx.incentivePayout.count({ where: { userId } }),
+        ]);
 
-        // Update user
-        const updatedUser = await tx.user.update({
-          where: { id: userId },
-          data: { incentiveRatePaise: input.ratePaise },
-          select: {
-            id: true,
-            name: true,
-            role: true,
-            incentiveRatePaise: true,
+        // Backfill confirmed sales missing incentives, or recalculate all unpaid confirmed sales before any payout
+        const shouldRecalcAll = Boolean(input.applyToUnpaid) && paidCount === 0;
+        const salesToUpdate = await tx.sale.findMany({
+          where: {
+            sellerId: userId,
+            status: "CONFIRMED",
+            ...(shouldRecalcAll
+              ? {}
+              : { OR: [{ incentiveAmountPaise: null }, { incentiveRatePaise: null }] }),
           },
+          select: { id: true, quantity: true },
         });
+        if (salesToUpdate.length > 0) {
+          await Promise.all(
+            salesToUpdate.map((s) =>
+              tx.sale.update({
+                where: { id: s.id },
+                data: {
+                  incentiveRatePaise: input.ratePaise,
+                  incentiveAmountPaise: s.quantity * input.ratePaise,
+                },
+              })
+            )
+          );
+        }
 
         return {
           user: updatedUser,
           history,
+          recalculatedSalesCount: salesToUpdate.length,
         };
       });
     },
 
     createAdjustment: async (adminId: string, userId: string, input: CreateAdjustmentInput) => {
-      const user = await database.user.findUnique({
-        where: { id: userId },
-        select: { id: true, name: true, role: true },
-      });
+      const [user, settings] = await Promise.all([
+        database.user.findUnique({
+          where: { id: userId },
+          select: { id: true, name: true, role: true, incentiveRatePaise: true },
+        }),
+        getOrCreateSettings(),
+      ]);
 
       if (!user) {
         throw new HttpError(404, "Employee not found");
       }
+
+      const effectiveRatePaise =
+        user.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
 
       return database.$transaction(async (tx) => {
         // If deducting, check that the employee has sufficient outstanding entitlement
@@ -426,7 +487,14 @@ export function createAdminIncentiveService(database: PrismaClient) {
             }),
           ]);
 
-          const summary = calculateUserIncentiveSummary(userId, sales, adjustments, payouts);
+          const summary = calculateUserIncentiveSummary(
+            userId,
+            sales,
+            adjustments,
+            payouts,
+            new Date(),
+            effectiveRatePaise
+          );
           if (summary.outstandingPaise < input.amountPaise) {
             throw new HttpError(
               400,
@@ -468,14 +536,20 @@ export function createAdminIncentiveService(database: PrismaClient) {
         }
       }
 
-      const user = await database.user.findUnique({
-        where: { id: userId },
-        select: { id: true, name: true, role: true },
-      });
+      const [user, settings] = await Promise.all([
+        database.user.findUnique({
+          where: { id: userId },
+          select: { id: true, name: true, role: true, incentiveRatePaise: true },
+        }),
+        getOrCreateSettings(),
+      ]);
 
       if (!user) {
         throw new HttpError(404, "Employee not found");
       }
+
+      const effectiveRatePaise =
+        user.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
 
       return database.$transaction(async (tx) => {
         // Concurrency protection: fetch active sales, adjustments, payouts to calculate exact balance
@@ -494,7 +568,14 @@ export function createAdminIncentiveService(database: PrismaClient) {
           }),
         ]);
 
-        const summary = calculateUserIncentiveSummary(userId, sales, adjustments, payouts);
+        const summary = calculateUserIncentiveSummary(
+          userId,
+          sales,
+          adjustments,
+          payouts,
+          new Date(),
+          effectiveRatePaise
+        );
 
         if (summary.outstandingPaise <= 0) {
           throw new HttpError(400, "Employee has no outstanding payable balance. Balance is already fully settled.");
@@ -579,10 +660,50 @@ export function createAdminIncentiveService(database: PrismaClient) {
       if (input.invoiceTerms !== undefined) data["invoiceTerms"] = input.invoiceTerms;
 
       invalidateBusinessSettingsCache();
-      return database.businessSettings.update({
+      const updated = await database.businessSettings.update({
         where: { id: 1 },
         data,
       });
+
+      if (input.incentiveRatePaise !== undefined && input.incentiveRatePaise !== null) {
+        const ratePaise = input.incentiveRatePaise;
+        const targetUsers = await database.user.findMany({
+          where: {
+            role: { in: ["SELLER", "MANAGER"] },
+            incentiveRatePaise: null,
+            ...(input.applyToUnpaid ? { incentivePayouts: { none: {} } } : {}),
+          },
+          select: { id: true },
+        });
+        const targetIds = targetUsers.map((u) => u.id);
+        if (targetIds.length > 0) {
+          const salesToRecalc = await database.sale.findMany({
+            where: {
+              sellerId: { in: targetIds },
+              status: "CONFIRMED",
+              ...(input.applyToUnpaid
+                ? {}
+                : { OR: [{ incentiveAmountPaise: null }, { incentiveRatePaise: null }] }),
+            },
+            select: { id: true, quantity: true },
+          });
+          if (salesToRecalc.length > 0) {
+            await database.$transaction(
+              salesToRecalc.map((s) =>
+                database.sale.update({
+                  where: { id: s.id },
+                  data: {
+                    incentiveRatePaise: ratePaise,
+                    incentiveAmountPaise: s.quantity * ratePaise,
+                  },
+                })
+              )
+            );
+          }
+        }
+      }
+
+      return updated;
     },
   };
 }
