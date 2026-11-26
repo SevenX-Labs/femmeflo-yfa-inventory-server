@@ -8,7 +8,8 @@ const pincodeSchema = z.string().trim().regex(/^[1-9][0-9]{5}$/, "Pincode must b
 
 export const createCustomerSchema = z.strictObject({
   shopName: z.string().trim().min(1).max(100),
-  contactName: z.string().trim().min(1).max(100),
+  contactName: z.string().trim().min(1).max(100).optional(),
+  ownerName: z.string().trim().min(1).max(100).optional(),
   phone: phoneSchema,
   email: emailSchema.optional(),
   categoryId: z.string().uuid(),
@@ -34,6 +35,14 @@ export const createCustomerSchema = z.strictObject({
   photoReason: z.string().trim().max(500).optional(),
 })
 .superRefine((data, ctx) => {
+  const contactName = data.contactName ?? data.ownerName;
+  if (!contactName || contactName.trim().length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Contact / owner name is required",
+      path: ["contactName"],
+    });
+  }
   const result = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
   if (!result.valid && result.error) {
     ctx.addIssue({
@@ -44,10 +53,13 @@ export const createCustomerSchema = z.strictObject({
   }
 })
 .transform((data) => {
+  const { ownerName, ...rest } = data;
+  const resolvedContactName = (data.contactName ?? ownerName ?? "").trim();
   const coords = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
   const computedAddress = data.address || [data.shopNumber, data.streetName, data.village, data.district, data.state, data.pincode].filter(Boolean).join(", ");
   return {
-    ...data,
+    ...rest,
+    contactName: resolvedContactName,
     address: computedAddress || undefined,
     latitude: coords.latitude,
     longitude: coords.longitude,
@@ -60,6 +72,7 @@ export const createCustomerSchema = z.strictObject({
 export const updateCustomerSchema = z.strictObject({
   shopName: z.string().trim().min(1).max(100).optional(),
   contactName: z.string().trim().min(1).max(100).optional(),
+  ownerName: z.string().trim().min(1).max(100).optional(),
   phone: phoneSchema.optional(),
   email: emailSchema.optional(),
   categoryId: z.string().uuid().optional(),
@@ -97,10 +110,13 @@ export const updateCustomerSchema = z.strictObject({
   }
 })
 .transform((data) => {
+  const { ownerName, ...rest } = data;
+  const resolvedContactName = data.contactName ?? ownerName;
   const coords = validateCoordinates(data.latitude, data.longitude, { requireIndia: true, required: false });
   const photo = data.photoPath ?? data.photoUrl ?? data.imageUrl;
   return {
-    ...data,
+    ...rest,
+    ...(resolvedContactName !== undefined ? { contactName: resolvedContactName } : {}),
     latitude: coords.latitude,
     longitude: coords.longitude,
     accuracy: data.accuracy,

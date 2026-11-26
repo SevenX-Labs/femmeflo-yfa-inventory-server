@@ -60,9 +60,11 @@ export function formatISTDetails(dateInput: unknown) {
 function serializeCustomer<T extends { latitude?: unknown; longitude?: unknown; createdAt?: unknown; updatedAt?: unknown }>(customer: T) {
   const ist = customer.createdAt ? formatISTDetails(customer.createdAt) : null;
   const updatedIst = customer.updatedAt ? formatISTDetails(customer.updatedAt) : null;
+  const raw = customer as Record<string, unknown>;
 
   return {
     ...customer,
+    ownerName: (raw["ownerName"] as string | undefined) ?? (raw["contactName"] as string | undefined) ?? null,
     latitude: customer.latitude != null ? Number(customer.latitude) : null,
     longitude: customer.longitude != null ? Number(customer.longitude) : null,
     photoUrl: (customer as any).photoPath || (customer as any).photoUrl || null,
