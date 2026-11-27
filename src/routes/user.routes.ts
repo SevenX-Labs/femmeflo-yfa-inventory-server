@@ -53,7 +53,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   // Invoices (Direct PDF streaming for Admin, Manager, and Seller)
   router.get("/invoices/:id/pdf", authenticate, async (request, response, next) => {
     try {
-      const user = response.locals.authUser as { id: string; role: string };
+      const user = response.locals.authUser as { id: string; role: string; sessionRole?: string };
       const id = parseInput(idSchema, request.params["id"]);
       let invoice = await database.invoice.findFirst({
         where: {
@@ -87,11 +87,12 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
         }
 
         // Check authorization before generating invoice
-        if (user.role === "SELLER" && sale.sellerId !== user.id) {
+        const activeRole = user.sessionRole ?? user.role;
+        if (activeRole === "SELLER" && sale.sellerId !== user.id) {
           response.status(403).json({ success: false, message: "Forbidden" });
           return;
         }
-        if (user.role === "MANAGER" && sale.seller.managerId !== user.id && sale.sellerId !== user.id) {
+        if (activeRole === "MANAGER" && sale.seller.managerId !== user.id && sale.sellerId !== user.id) {
           response.status(403).json({ success: false, message: "Forbidden" });
           return;
         }
@@ -158,12 +159,13 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
       }
 
       // Role authorization (dual-role Manager can access both team sales and their own sales)
-      if (user.role === "SELLER" && invoice.sale.sellerId !== user.id) {
+      const activeRole = user.sessionRole ?? user.role;
+      if (activeRole === "SELLER" && invoice.sale.sellerId !== user.id) {
         response.status(403).json({ success: false, message: "Forbidden" });
         return;
       }
       if (
-        user.role === "MANAGER" &&
+        activeRole === "MANAGER" &&
         invoice.sale.seller.managerId !== user.id &&
         invoice.sale.sellerId !== user.id
       ) {

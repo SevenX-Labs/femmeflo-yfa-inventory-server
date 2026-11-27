@@ -1,10 +1,19 @@
 import type { RequestHandler } from "express";
 import { z } from "zod";
 import { AuthenticationError, type AuthService } from "../../services/auth/auth.service.js";
-import type { PublicUser } from "../../services/auth/auth.types.js";
+import type { PublicUser, Role } from "../../services/auth/auth.types.js";
 import { parseInput, passwordSchema } from "../../middleware/validation.js";
 
-const loginBody = z.object({
+function parsePortalHint(raw?: string): Role | undefined {
+  if (!raw) return undefined;
+  const upper = raw.trim().toUpperCase();
+  if (upper === "SELLER") return "SELLER";
+  if (upper === "MANAGER") return "MANAGER";
+  if (upper === "ADMIN" || upper === "SUPER_ADMIN") return "SUPER_ADMIN";
+  return undefined;
+}
+
+const loginBody = z.strictObject({
   login: z.string().trim().min(1).max(254),
   password: z.string().min(1).max(1024),
   roleHint: z.string().optional(),
@@ -27,7 +36,8 @@ export function createAuthController(auth: AuthService) {
       return;
     }
     try {
-      const data = await auth.login(parsed.data.login, parsed.data.password);
+      const portalHint = parsePortalHint(parsed.data.roleHint);
+      const data = await auth.login(parsed.data.login, parsed.data.password, portalHint);
       response.json({ success: true, message: "Login successful", data });
     } catch (error) {
       if (error instanceof AuthenticationError) {
@@ -46,7 +56,7 @@ export function createAuthController(auth: AuthService) {
         return;
       }
       try {
-        const data = await auth.login(parsed.data.login, parsed.data.password);
+        const data = await auth.login(parsed.data.login, parsed.data.password, expectedRole);
         if (expectedRole === "SUPER_ADMIN" && data.user.role !== "SUPER_ADMIN") {
           response.status(403).json({ success: false, message: `Access denied. ${label} role required.` });
           return;
@@ -65,6 +75,7 @@ export function createAuthController(auth: AuthService) {
                 user: {
                   ...data.user,
                   role: "SELLER" as const,
+                  sessionRole: "SELLER" as const,
                   isSeller: true,
                 },
               },

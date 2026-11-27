@@ -28,7 +28,9 @@ export type AuthUser = {
   targetBonusPaise?: number | null;
 };                       
 
-export type PublicUser = Omit<AuthUser, "passwordHash" | "tokenVersion">;
+export type PublicUser = Omit<AuthUser, "passwordHash" | "tokenVersion"> & {
+  sessionRole?: Role;
+};
 
 export const authUserSelect = {
   id: true,

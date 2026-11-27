@@ -14,6 +14,10 @@ function normalizeRole(role: SupportedRole): Role {
   return role;
 }
 
+function getEffectiveRole(user: PublicUser): Role {
+  return user.sessionRole ?? user.role;
+}
+
 const PERMISSION_ALIASES: Record<string, string[]> = {
   onboard_customers: ["onboard_customers", "CUSTOMER_CREATE"],
   CUSTOMER_CREATE: ["onboard_customers", "CUSTOMER_CREATE"],
@@ -50,11 +54,12 @@ export function requirePermission(permission: Permission): RequestHandler {
       response.status(401).json({ success: false, message: "Authentication required" });
       return;
     }
-    if (user.role === "SUPER_ADMIN") {
+    const effectiveRole = getEffectiveRole(user);
+    if (effectiveRole === "SUPER_ADMIN") {
       next();
       return;
     }
-    if (user.role === "MANAGER" && userHasPermission(user.permissions, permission)) {
+    if (effectiveRole === "MANAGER" && userHasPermission(user.permissions, permission)) {
       next();
       return;
     }
@@ -69,11 +74,12 @@ export function requireAnyPermission(permissions: (Permission | string)[]): Requ
       response.status(401).json({ success: false, message: "Authentication required" });
       return;
     }
-    if (user.role === "SUPER_ADMIN") {
+    const effectiveRole = getEffectiveRole(user);
+    if (effectiveRole === "SUPER_ADMIN") {
       next();
       return;
     }
-    if (user.role === "MANAGER" && permissions.some((p) => userHasPermission(user.permissions, p))) {
+    if (effectiveRole === "MANAGER" && permissions.some((p) => userHasPermission(user.permissions, p))) {
       next();
       return;
     }
@@ -89,7 +95,8 @@ export function requireRole(...roles: SupportedRole[]): RequestHandler {
       response.status(401).json({ success: false, message: "Authentication required" });
       return;
     }
-    if (!normalized.includes(user.role)) {
+    const effectiveRole = getEffectiveRole(user);
+    if (!normalized.includes(effectiveRole)) {
       if (normalized.includes("SELLER") && user.isSeller) {
         next();
         return;

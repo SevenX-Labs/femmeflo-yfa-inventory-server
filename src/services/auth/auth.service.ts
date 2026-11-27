@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "../../generated/prisma/client.js";
-import { authUserSelect, toPublicUser } from "./auth.types.js";
+import { authUserSelect, toPublicUser, type PublicUser, type Role } from "./auth.types.js";
 import { HttpError } from "../../middleware/validation.js";
 import { z } from "zod";
 import type { NotificationService } from "../notification/notification.service.js";
@@ -49,17 +49,44 @@ export function createAuthService(
   const isStubDb = !("$transaction" in (database as any));
   const authCacheTtlMs = isStubDb || process.env.NODE_ENV === "test" ? 0 : 30_000;
 
-  const userAuthCache = new Map<string, { user: ReturnType<typeof toPublicUser>; tokenVersion: number; expiresAt: number }>();
+  const userAuthCache = new Map<string, { user: PublicUser; tokenVersion: number; expiresAt: number }>();
+
+  const clearUserCacheEntries = (userId: string) => {
+    for (const key of userAuthCache.keys()) {
+      if (key === userId || key.startsWith(`${userId}:`)) {
+        userAuthCache.delete(key);
+      }
+    }
+  };
+
+  const resolveSessionRole = (
+    dbUser: { role: Role; isSeller?: boolean | null },
+    portalHint?: Role
+  ): Role => {
+    if (
+      portalHint === "SELLER" &&
+      (dbUser.role === "SELLER" || (dbUser.role === "MANAGER" && dbUser.isSeller))
+    ) {
+      return "SELLER";
+    }
+    if (
+      portalHint === "MANAGER" &&
+      (dbUser.role === "MANAGER" || dbUser.role === "SUPER_ADMIN")
+    ) {
+      return "MANAGER";
+    }
+    return dbUser.role;
+  };
 
   return {
     invalidateUser(userId: string) {
-      userAuthCache.delete(userId);
+      clearUserCacheEntries(userId);
     },
     clearCache() {
       userAuthCache.clear();
     },
 
-    async login(login: string, password: string) {
+    async login(login: string, password: string, portalHint?: Role) {
       const raw = login.trim();
       const isEmail = raw.includes("@");
       let whereClause: any;
@@ -100,11 +127,20 @@ export function createAuthService(
       if (!user || !user.active || !passwordMatches || Buffer.byteLength(password, "utf8") > 72) {
         throw new AuthenticationError();
       }
+      const sessionRole = resolveSessionRole(user, portalHint);
       const token = jwt.sign(
-        { version: user.tokenVersion }, config.secret,
+        {
+          version: user.tokenVersion,
+          ...(sessionRole !== user.role ? { sessionRole } : {}),
+        },
+        config.secret,
         { algorithm: "HS256", issuer, audience, subject: user.id, expiresIn: tokenDuration },
       );
-      return { token, tokenType: "Bearer" as const, expiresInSeconds: tokenDuration, user: toPublicUser(user) };
+      const publicUser: PublicUser =
+        sessionRole !== user.role
+          ? { ...toPublicUser(user), sessionRole }
+          : toPublicUser(user);
+      return { token, tokenType: "Bearer" as const, expiresInSeconds: tokenDuration, user: publicUser };
     },
 
     async authenticate(token: string) {
@@ -119,8 +155,15 @@ export function createAuthService(
       if (!z.uuid().safeParse(payload.sub).success || !Number.isInteger(payload.version) || typeof payload.exp !== "number") return null;
 
       const userId = payload.sub!;
+      const rawSessionRole = payload["sessionRole"];
+      const tokenSessionRole: Role | undefined =
+        rawSessionRole === "SELLER" || rawSessionRole === "MANAGER" || rawSessionRole === "SUPER_ADMIN"
+          ? rawSessionRole
+          : undefined;
+      const cacheKey = `${userId}:${tokenSessionRole ?? "DEFAULT"}`;
+
       if (authCacheTtlMs > 0) {
-        const cached = userAuthCache.get(userId);
+        const cached = userAuthCache.get(cacheKey);
         const now = Date.now();
         if (cached && cached.expiresAt > now && cached.tokenVersion === payload.version) {
           return cached.user;
@@ -129,18 +172,31 @@ export function createAuthService(
 
       const user = await database.user.findUnique({ where: { id: userId }, select: authUserSelect });
       if (!user?.active || user.tokenVersion !== payload.version) {
-        if (authCacheTtlMs > 0) userAuthCache.delete(userId);
+        if (authCacheTtlMs > 0) clearUserCacheEntries(userId);
         return null;
       }
-      const publicUser = toPublicUser(user);
+      if (tokenSessionRole === "SELLER" && user.role !== "SELLER" && !(user.role === "MANAGER" && user.isSeller)) {
+        if (authCacheTtlMs > 0) clearUserCacheEntries(userId);
+        return null;
+      }
+      if (tokenSessionRole === "MANAGER" && user.role !== "MANAGER" && user.role !== "SUPER_ADMIN") {
+        if (authCacheTtlMs > 0) clearUserCacheEntries(userId);
+        return null;
+      }
+
+      const resolvedSessionRole = resolveSessionRole(user, tokenSessionRole);
+      const publicUser: PublicUser =
+        resolvedSessionRole !== user.role
+          ? { ...toPublicUser(user), sessionRole: resolvedSessionRole }
+          : toPublicUser(user);
       if (authCacheTtlMs > 0) {
-        userAuthCache.set(userId, { user: publicUser, tokenVersion: user.tokenVersion, expiresAt: Date.now() + authCacheTtlMs });
+        userAuthCache.set(cacheKey, { user: publicUser, tokenVersion: user.tokenVersion, expiresAt: Date.now() + authCacheTtlMs });
       }
       return publicUser;
     },
 
     async changePassword(userId: string, currentPassword: string, newPassword: string) {
-      userAuthCache.delete(userId);
+      clearUserCacheEntries(userId);
       const user = await database.user.findUnique({ where: { id: userId }, select: authUserSelect });
       if (!user?.active || Buffer.byteLength(currentPassword, "utf8") > 72 || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
         throw new HttpError(401, "Current password is incorrect");
@@ -215,7 +271,7 @@ export function createAuthService(
         throw new HttpError(400, "Invalid, expired, or already used password reset token");
       }
 
-      userAuthCache.delete(resetRecord.userId);
+      clearUserCacheEntries(resetRecord.userId);
       const passwordHash = await bcrypt.hash(newPassword, 12);
 
       await database.$transaction([
