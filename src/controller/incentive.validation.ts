@@ -24,6 +24,25 @@ export const updateUserRateSchema = z.object({
 
 export type UpdateUserRateInput = z.infer<typeof updateUserRateSchema>;
 
+export const updateUserTargetSchema = z.strictObject({
+  salesTargetPackets: z.coerce
+    .number()
+    .int("Target packets must be a whole number")
+    .positive("Target packets must be greater than zero")
+    .max(1_000_000, "Target packets cannot exceed 1,000,000")
+    .nullable(),
+  salesTargetPeriod: z.enum(["DAILY", "MONTHLY"]).default("MONTHLY"),
+  targetBonusPaise: z.coerce
+    .number()
+    .int("Bonus amount must be a whole number in paise")
+    .min(0, "Bonus amount cannot be negative")
+    .max(100_000_000, "Bonus amount is too large")
+    .nullable()
+    .optional(),
+});
+
+export type UpdateUserTargetInput = z.infer<typeof updateUserTargetSchema>;
+
 export const createAdjustmentSchema = z.object({
   type: z.enum(["ADD", "DEDUCT"]),
   amountPaise: z.coerce.number().int().positive("Adjustment amount must be greater than zero"),

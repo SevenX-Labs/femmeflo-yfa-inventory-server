@@ -88,6 +88,129 @@ export function getCurrentAndPreviousPeriod(referenceDate: Date = new Date()) {
   };
 }
 
+export type SalesTargetPeriod = 'DAILY' | 'MONTHLY';
+
+export interface TargetSaleRecord {
+  quantity: number;
+  totalPaise?: number | null;
+  confirmedAt?: Date | string | null;
+  createdAt?: Date | string;
+}
+
+export interface TargetConfigInput {
+  salesTargetPackets?: number | null;
+  salesTargetPeriod?: SalesTargetPeriod | null;
+  targetBonusPaise?: number | null;
+}
+
+export interface TargetProgressSummary {
+  hasTarget: boolean;
+  period: SalesTargetPeriod;
+  periodLabel: string;
+  targetPackets: number | null;
+  completedPackets: number;
+  remainingPackets: number;
+  completedRevenuePaise: number;
+  progressPercent: number;
+  bonusPaise: number;
+  earnedBonusPaise: number;
+  isAchieved: boolean;
+}
+
+const IST_OFFSET_MS = 330 * 60 * 1000;
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+function getIstParts(date: Date): { year: number; month: number; day: number } {
+  const ist = new Date(date.getTime() + IST_OFFSET_MS);
+  return {
+    year: ist.getUTCFullYear(),
+    month: ist.getUTCMonth() + 1,
+    day: ist.getUTCDate(),
+  };
+}
+
+export function getTargetPeriodKey(
+  period: SalesTargetPeriod,
+  referenceDate: Date = new Date()
+): string {
+  const { year, month, day } = getIstParts(referenceDate);
+  const mm = String(month).padStart(2, '0');
+  if (period === 'DAILY') {
+    const dd = String(day).padStart(2, '0');
+    return `${year}-${mm}-${dd}`;
+  }
+  return `${year}-${mm}`;
+}
+
+export function getTargetPeriodLabel(
+  period: SalesTargetPeriod,
+  referenceDate: Date = new Date()
+): string {
+  const { year, month, day } = getIstParts(referenceDate);
+  const mon = MONTH_ABBR[month - 1] ?? 'Jan';
+  return period === 'DAILY' ? `${day} ${mon} ${year}` : `${mon} ${year}`;
+}
+
+export function computeTargetProgress(
+  config: TargetConfigInput,
+  sales: TargetSaleRecord[],
+  referenceDate: Date = new Date()
+): TargetProgressSummary {
+  const period: SalesTargetPeriod = config.salesTargetPeriod === 'DAILY' ? 'DAILY' : 'MONTHLY';
+  const rawTarget = config.salesTargetPackets;
+  const targetPackets =
+    typeof rawTarget === 'number' && Number.isFinite(rawTarget) && rawTarget > 0
+      ? Math.round(rawTarget)
+      : null;
+  const hasTarget = targetPackets !== null;
+  const rawBonus = config.targetBonusPaise;
+  const bonusPaise =
+    hasTarget && typeof rawBonus === 'number' && Number.isFinite(rawBonus) && rawBonus > 0
+      ? Math.round(rawBonus)
+      : 0;
+
+  const ref = getIstParts(referenceDate);
+  let completedPackets = 0;
+  let completedRevenuePaise = 0;
+
+  for (const sale of sales) {
+    const dtInput = sale.confirmedAt ?? sale.createdAt;
+    if (!dtInput) continue;
+    const dt = dtInput instanceof Date ? dtInput : new Date(dtInput);
+    if (Number.isNaN(dt.getTime())) continue;
+    const sp = getIstParts(dt);
+    const inPeriod =
+      period === 'DAILY'
+        ? sp.year === ref.year && sp.month === ref.month && sp.day === ref.day
+        : sp.year === ref.year && sp.month === ref.month;
+    if (!inPeriod) continue;
+    completedPackets += Math.max(0, Number(sale.quantity) || 0);
+    completedRevenuePaise += Math.max(0, Number(sale.totalPaise) || 0);
+  }
+
+  const remainingPackets = targetPackets !== null ? Math.max(0, targetPackets - completedPackets) : 0;
+  const progressPercent =
+    targetPackets !== null && targetPackets > 0
+      ? Math.min(100, Math.round((completedPackets / targetPackets) * 100))
+      : 0;
+  const isAchieved = targetPackets !== null && completedPackets >= targetPackets;
+  const earnedBonusPaise = isAchieved ? bonusPaise : 0;
+
+  return {
+    hasTarget,
+    period,
+    periodLabel: getTargetPeriodLabel(period, referenceDate),
+    targetPackets,
+    completedPackets,
+    remainingPackets,
+    completedRevenuePaise,
+    progressPercent,
+    bonusPaise,
+    earnedBonusPaise,
+    isAchieved,
+  };
+}
+
 export function calculateUserIncentiveSummary(
   userId: string,
   sales: RawSaleRecord[],

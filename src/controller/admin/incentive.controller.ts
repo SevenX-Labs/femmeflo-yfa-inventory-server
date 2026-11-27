@@ -4,6 +4,7 @@ import { parseInput, idSchema } from "../../middleware/validation.js";
 import {
   updateIncentiveSettingsSchema,
   updateUserRateSchema,
+  updateUserTargetSchema,
   createAdjustmentSchema,
   createPayoutSchema,
   listIncentivesQuerySchema,
@@ -40,6 +41,21 @@ export function createAdminIncentiveController(service: AdminIncentiveService) {
       response.json({
         success: true,
         message: "Incentive rate updated successfully",
+        data,
+      });
+    },
+
+    updateUserTarget: async (request: Request, response: Response) => {
+      const admin = response.locals.authUser as PublicUser;
+      const id = parseInput(idSchema, request.params["id"]);
+      const input = parseInput(updateUserTargetSchema, request.body);
+      const data = await service.updateUserTarget(admin.id, id, input);
+      response.json({
+        success: true,
+        message:
+          input.salesTargetPackets !== null
+            ? "Sales target updated successfully"
+            : "Sales target removed",
         data,
       });
     },

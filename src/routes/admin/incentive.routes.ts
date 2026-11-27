@@ -13,6 +13,7 @@ export function createAdminIncentiveRoutes(database: PrismaClient) {
 
   router.get("/users/:id", controller.getUserIncentiveDetails);
   router.patch("/users/:id/rate", controller.updateUserRate);
+  router.patch("/users/:id/target", controller.updateUserTarget);
   router.post("/users/:id/adjustments", controller.createAdjustment);
   router.post("/users/:id/payouts", controller.createPayout);
 

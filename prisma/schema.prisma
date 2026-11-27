@@ -54,6 +54,11 @@ enum DeliveryChannel {
   WHATSAPP
 }
 
+enum TargetPeriod {
+  DAILY
+  MONTHLY
+}
+
 enum DeliveryStatus {
   PENDING
   SENT
@@ -99,6 +104,9 @@ model User {
   resets          PasswordReset[]
   payments        PaymentRecord[]
   incentiveRatePaise   Int?
+  salesTargetPackets   Int?
+  salesTargetPeriod    TargetPeriod           @default(MONTHLY)
+  targetBonusPaise     Int?
   incentiveRateHistory IncentiveRateHistory[] @relation("UserIncentiveRateHistory")
   ratesChanged         IncentiveRateHistory[] @relation("IncentiveRateChanger")
   incentiveAdjustments IncentiveAdjustment[]  @relation("UserIncentiveAdjustments")

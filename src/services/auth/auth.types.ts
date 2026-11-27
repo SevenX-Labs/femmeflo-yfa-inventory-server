@@ -23,6 +23,9 @@ export type AuthUser = {
   village: string | null;
   permissions: string[];
   isSeller?: boolean;
+  salesTargetPackets?: number | null;
+  salesTargetPeriod?: "DAILY" | "MONTHLY";
+  targetBonusPaise?: number | null;
 };                       
 
 export type PublicUser = Omit<AuthUser, "passwordHash" | "tokenVersion">;
@@ -50,6 +53,9 @@ export const authUserSelect = {
   state: true,
   district: true,
   village: true,
+  salesTargetPackets: true,
+  salesTargetPeriod: true,
+  targetBonusPaise: true,
 } as const;
 
 export function toPublicUser(user: AuthUser): PublicUser {
@@ -74,6 +80,9 @@ export function toPublicUser(user: AuthUser): PublicUser {
     village: user.village,
     permissions: user.permissions,
     isSeller: user.isSeller ?? false,
+    salesTargetPackets: user.salesTargetPackets ?? null,
+    salesTargetPeriod: user.salesTargetPeriod ?? "MONTHLY",
+    targetBonusPaise: user.targetBonusPaise ?? null,
   };
 }
 
@@ -98,4 +107,7 @@ export const publicUserSelect = {
   state: true,
   district: true,
   village: true,
+  salesTargetPackets: true,
+  salesTargetPeriod: true,
+  targetBonusPaise: true,
 } as const;

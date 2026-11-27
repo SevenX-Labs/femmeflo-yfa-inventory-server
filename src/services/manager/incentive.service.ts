@@ -4,6 +4,7 @@ import {
   calculateUserIncentiveSummary,
   getCurrentAndPreviousPeriod,
 } from "../incentive/incentive.calculator.js";
+import { syncUserTargetBonusAdjustment } from "../incentive/target-bonus.service.js";
 import { DEFAULT_INCENTIVE_RATE_PAISE, getCachedBusinessSettings } from "../settings.cache.js";
 
 export function createManagerIncentiveService(database: PrismaClient) {
@@ -17,7 +18,12 @@ export function createManagerIncentiveService(database: PrismaClient) {
         getCachedBusinessSettings(database),
         database.user.findUnique({
           where: { id: manager.id },
-          select: { incentiveRatePaise: true },
+          select: {
+            incentiveRatePaise: true,
+            salesTargetPackets: true,
+            salesTargetPeriod: true,
+            targetBonusPaise: true,
+          },
         }),
         database.sale.findMany({
           where: { sellerId: manager.id, status: { in: ["CONFIRMED", "COMPLETED"] } },
@@ -63,10 +69,35 @@ export function createManagerIncentiveService(database: PrismaClient) {
       const defaultRatePaise = settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
       const personalRatePaise = managerRecord?.incentiveRatePaise ?? defaultRatePaise;
 
+      const { progress: personalTargetProgress, createdAdjustment: createdPersonalAdjustment } =
+        await syncUserTargetBonusAdjustment(database, {
+          userId: manager.id,
+          salesTargetPackets: managerRecord?.salesTargetPackets ?? null,
+          salesTargetPeriod: managerRecord?.salesTargetPeriod ?? "MONTHLY",
+          targetBonusPaise: managerRecord?.targetBonusPaise ?? null,
+          confirmedSales: personalSales,
+          existingAdjustments: personalAdjustments,
+          actorUserId: manager.id,
+          referenceDate: now,
+        });
+      const resolvedPersonalAdjustments = createdPersonalAdjustment
+        ? [
+            {
+              id: createdPersonalAdjustment.id,
+              type: createdPersonalAdjustment.type,
+              amountPaise: createdPersonalAdjustment.amountPaise,
+              reason: createdPersonalAdjustment.reason,
+              adjustmentDate: createdPersonalAdjustment.adjustmentDate,
+              createdAt: createdPersonalAdjustment.createdAt,
+            },
+            ...personalAdjustments,
+          ]
+        : personalAdjustments;
+
       const personalSummary = calculateUserIncentiveSummary(
         manager.id,
         personalSales,
-        personalAdjustments,
+        resolvedPersonalAdjustments,
         personalPayouts,
         now,
         personalRatePaise
@@ -95,7 +126,15 @@ export function createManagerIncentiveService(database: PrismaClient) {
           previousMonth: personalSummary.previousMonth,
           olderPendingPaise: personalSummary.olderPendingPaise,
           olderPendingRupees: personalSummary.olderPendingPaise / 100,
+          salesTargetPackets: personalTargetProgress.targetPackets,
+          salesTargetPeriod: personalTargetProgress.period,
+          targetBonusPaise: personalTargetProgress.bonusPaise,
+          targetProgress: personalTargetProgress,
         },
+        salesTargetPackets: personalTargetProgress.targetPackets,
+        salesTargetPeriod: personalTargetProgress.period,
+        targetBonusPaise: personalTargetProgress.bonusPaise,
+        targetProgress: personalTargetProgress,
         items: personalSales.map((s) => {
           const itemRate = s.incentiveRatePaise ?? personalRatePaise;
           return {
@@ -108,7 +147,7 @@ export function createManagerIncentiveService(database: PrismaClient) {
           };
         }),
         months: personalSummary.periods,
-        adjustments: personalAdjustments,
+        adjustments: resolvedPersonalAdjustments,
         payouts: personalPayouts,
       };
 
@@ -131,6 +170,7 @@ export function createManagerIncentiveService(database: PrismaClient) {
             id: true,
             sellerId: true,
             quantity: true,
+            totalPaise: true,
             incentiveRatePaise: true,
             incentiveAmountPaise: true,
             confirmedAt: true,
@@ -190,11 +230,38 @@ export function createManagerIncentiveService(database: PrismaClient) {
         arr.push(payout);
       }
 
-      const memberSummaries = teamSellers.map((seller) => {
+      const memberSummaries = await Promise.all(
+        teamSellers.map(async (seller) => {
           const sales = teamSalesByUser.get(seller.id) ?? [];
-          const adjustments = teamAdjByUser.get(seller.id) ?? [];
+          const baseAdjustments = teamAdjByUser.get(seller.id) ?? [];
           const payouts = teamPayoutsByUser.get(seller.id) ?? [];
           const memberRatePaise = seller.incentiveRatePaise ?? defaultRatePaise;
+
+          const { progress: targetProgress, createdAdjustment } =
+            await syncUserTargetBonusAdjustment(database, {
+              userId: seller.id,
+              salesTargetPackets: seller.salesTargetPackets,
+              salesTargetPeriod: seller.salesTargetPeriod,
+              targetBonusPaise: seller.targetBonusPaise,
+              confirmedSales: sales,
+              existingAdjustments: baseAdjustments,
+              actorUserId: seller.id,
+              referenceDate: now,
+            });
+          const adjustments = createdAdjustment
+            ? [
+                ...baseAdjustments,
+                {
+                  id: createdAdjustment.id,
+                  userId: seller.id,
+                  type: createdAdjustment.type,
+                  amountPaise: createdAdjustment.amountPaise,
+                  reason: createdAdjustment.reason,
+                  adjustmentDate: createdAdjustment.adjustmentDate,
+                  createdAt: createdAdjustment.createdAt,
+                },
+              ]
+            : baseAdjustments;
 
           const summary = calculateUserIncentiveSummary(
             seller.id,
@@ -228,8 +295,13 @@ export function createManagerIncentiveService(database: PrismaClient) {
             currentMonth: summary.currentMonth,
             previousMonth: summary.previousMonth,
             olderPendingPaise: summary.olderPendingPaise,
+            salesTargetPackets: targetProgress.targetPackets,
+            salesTargetPeriod: targetProgress.period,
+            targetBonusPaise: targetProgress.bonusPaise,
+            targetProgress,
           };
-        });
+        })
+      );
 
       // Aggregate Team metrics
       let teamTotalPackets = 0;
@@ -249,8 +321,12 @@ export function createManagerIncentiveService(database: PrismaClient) {
       let teamPrevPendingPaise = 0;
 
       let teamOlderPendingPaise = 0;
+      let targetsAssignedCount = 0;
+      let targetsAchievedCount = 0;
 
       for (const m of memberSummaries) {
+        if (m.targetProgress.hasTarget) targetsAssignedCount++;
+        if (m.targetProgress.isAchieved) targetsAchievedCount++;
         teamTotalPackets += m.confirmedPackets;
         teamEarnedPaise += m.earnedPaise;
         teamAdditionsPaise += m.additionsPaise;
@@ -306,6 +382,8 @@ export function createManagerIncentiveService(database: PrismaClient) {
           },
           olderPendingPaise: teamOlderPendingPaise,
           olderPendingRupees: teamOlderPendingPaise / 100,
+          targetsAssignedCount,
+          targetsAchievedCount,
         },
         members: memberSummaries,
       };

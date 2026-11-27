@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../../generated/prisma/client.js";
 import { calculateUserIncentiveSummary } from "../incentive/incentive.calculator.js";
+import { syncUserTargetBonusAdjustment } from "../incentive/target-bonus.service.js";
 import { DEFAULT_INCENTIVE_RATE_PAISE, getCachedBusinessSettings } from "../settings.cache.js";
 
 export function createSellerIncentiveService(database: PrismaClient) {
@@ -11,7 +12,12 @@ export function createSellerIncentiveService(database: PrismaClient) {
         getCachedBusinessSettings(database),
         database.user.findUnique({
           where: { id: sellerId },
-          select: { incentiveRatePaise: true },
+          select: {
+            incentiveRatePaise: true,
+            salesTargetPackets: true,
+            salesTargetPeriod: true,
+            targetBonusPaise: true,
+          },
         }),
         database.sale.findMany({
           where: { sellerId, status: { in: ["CONFIRMED", "COMPLETED"] } },
@@ -56,10 +62,34 @@ export function createSellerIncentiveService(database: PrismaClient) {
 
       const effectiveRatePaise =
         sellerUser?.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
+      const { progress: targetProgress, createdAdjustment } =
+        await syncUserTargetBonusAdjustment(database, {
+          userId: sellerId,
+          salesTargetPackets: sellerUser?.salesTargetPackets ?? null,
+          salesTargetPeriod: sellerUser?.salesTargetPeriod ?? "MONTHLY",
+          targetBonusPaise: sellerUser?.targetBonusPaise ?? null,
+          confirmedSales: sales,
+          existingAdjustments: adjustments,
+          actorUserId: sellerId,
+          referenceDate: now,
+        });
+      const resolvedAdjustments = createdAdjustment
+        ? [
+            {
+              id: createdAdjustment.id,
+              type: createdAdjustment.type,
+              amountPaise: createdAdjustment.amountPaise,
+              reason: createdAdjustment.reason,
+              adjustmentDate: createdAdjustment.adjustmentDate,
+              createdAt: createdAdjustment.createdAt,
+            },
+            ...adjustments,
+          ]
+        : adjustments;
       const summary = calculateUserIncentiveSummary(
         sellerId,
         sales,
-        adjustments,
+        resolvedAdjustments,
         payouts,
         now,
         effectiveRatePaise
@@ -104,10 +134,18 @@ export function createSellerIncentiveService(database: PrismaClient) {
           previousMonth: summary.previousMonth,
           olderPendingPaise: summary.olderPendingPaise,
           olderPendingRupees: summary.olderPendingPaise / 100,
+          salesTargetPackets: targetProgress.targetPackets,
+          salesTargetPeriod: targetProgress.period,
+          targetBonusPaise: targetProgress.bonusPaise,
+          targetProgress,
         },
+        salesTargetPackets: targetProgress.targetPackets,
+        salesTargetPeriod: targetProgress.period,
+        targetBonusPaise: targetProgress.bonusPaise,
+        targetProgress,
         items,
         months: summary.periods,
-        adjustments,
+        adjustments: resolvedAdjustments,
         payouts,
       };
     },

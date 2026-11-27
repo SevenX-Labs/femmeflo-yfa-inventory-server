@@ -20,6 +20,20 @@ const userFields = {
   state: location.nullish().or(z.literal("")),
   district: location.nullish().or(z.literal("")),
   village: location.nullish().or(z.literal("")),
+  salesTargetPackets: z.coerce
+    .number()
+    .int("Target packets must be a whole number")
+    .positive("Target packets must be greater than zero")
+    .max(1_000_000)
+    .nullish(),
+  salesTargetPeriod: z.enum(["DAILY", "MONTHLY"]).optional(),
+  targetBonusPaise: z.coerce
+    .number()
+    .int("Target bonus must be a whole number in paise")
+    .min(0, "Target bonus cannot be negative")
+    .max(100_000_000)
+    .nullish(),
+  dailyTarget: z.coerce.number().int().min(0).max(1_000_000).nullish(),
 };
 
 function refineNoDuplicatePhone(data: { phone?: string | null | undefined; alternatePhone?: string | null | undefined }) {

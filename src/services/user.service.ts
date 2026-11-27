@@ -40,6 +40,28 @@ function cleanStr(val?: string | null): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeCreateTargetFields(input: {
+  salesTargetPackets?: number | null | undefined;
+  salesTargetPeriod?: "DAILY" | "MONTHLY" | undefined;
+  targetBonusPaise?: number | null | undefined;
+  dailyTarget?: number | null | undefined;
+}) {
+  const rawPackets =
+    input.salesTargetPackets !== undefined ? input.salesTargetPackets : input.dailyTarget;
+  const salesTargetPackets =
+    typeof rawPackets === "number" && rawPackets > 0 ? Math.round(rawPackets) : null;
+  const salesTargetPeriod: "DAILY" | "MONTHLY" =
+    input.salesTargetPeriod ??
+    (input.salesTargetPackets === undefined && input.dailyTarget ? "DAILY" : "MONTHLY");
+  const targetBonusPaise =
+    salesTargetPackets !== null &&
+    typeof input.targetBonusPaise === "number" &&
+    input.targetBonusPaise > 0
+      ? Math.round(input.targetBonusPaise)
+      : null;
+  return { salesTargetPackets, salesTargetPeriod, targetBonusPaise };
+}
+
 export function validateTerritory(territory: Territory) {
   const state = cleanStr(territory.state);
   const district = cleanStr(territory.district);
@@ -104,6 +126,7 @@ export async function createSeller(database: PrismaClient, input: CreateSellerIn
           role: "SELLER",
           managerId: manager.id,
           ...territory,
+          ...normalizeCreateTargetFields(input),
         }, select: publicUserSelect });
         await tx.stockLocation.create({ data: { type: "SELLER", name: seller.name, sellerId: seller.id } });
         return seller;
@@ -146,6 +169,7 @@ export async function createManager(database: PrismaClient, input: CreateManager
         state: cleanStr(input.state),
         district: cleanStr(input.district),
         village: cleanStr(input.village),
+        ...normalizeCreateTargetFields(input),
       },
       select: userListSelect,
     });
@@ -206,7 +230,8 @@ export async function updateUser(database: PrismaClient, roleOrScope: "MANAGER" 
     }
     const {
       name, phone, alternatePhone, email, active, state, district, village,
-      designation, employeeCode, address, pincode, aadharNumber, drivingLicense, education, managerId, isSeller
+      designation, employeeCode, address, pincode, aadharNumber, drivingLicense, education, managerId, isSeller,
+      salesTargetPackets, salesTargetPeriod, targetBonusPaise, dailyTarget,
     } = input;
     const data: Prisma.UserUpdateInput = {};
     if (name !== undefined) data.name = name.trim();
@@ -225,6 +250,24 @@ export async function updateUser(database: PrismaClient, roleOrScope: "MANAGER" 
     if (aadharNumber !== undefined) data.aadharNumber = cleanStr(aadharNumber);
     if (drivingLicense !== undefined) data.drivingLicense = cleanStr(drivingLicense);
     if (education !== undefined) data.education = cleanStr(education);
+    if (salesTargetPackets !== undefined) {
+      data.salesTargetPackets = salesTargetPackets && salesTargetPackets > 0 ? Math.round(salesTargetPackets) : null;
+      if (salesTargetPackets === null && targetBonusPaise === undefined) {
+        data.targetBonusPaise = null;
+      }
+    } else if (dailyTarget !== undefined) {
+      data.salesTargetPackets = dailyTarget && dailyTarget > 0 ? Math.round(dailyTarget) : null;
+      if (salesTargetPeriod === undefined && dailyTarget && dailyTarget > 0) {
+        data.salesTargetPeriod = "DAILY";
+      }
+      if (!dailyTarget && targetBonusPaise === undefined) {
+        data.targetBonusPaise = null;
+      }
+    }
+    if (salesTargetPeriod !== undefined) data.salesTargetPeriod = salesTargetPeriod;
+    if (targetBonusPaise !== undefined) {
+      data.targetBonusPaise = targetBonusPaise && targetBonusPaise > 0 ? Math.round(targetBonusPaise) : null;
+    }
     if (managerId !== undefined && role === "SELLER") {
       data.manager = managerId ? { connect: { id: managerId } } : { disconnect: true };
     }

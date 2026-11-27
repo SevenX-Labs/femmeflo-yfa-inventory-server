@@ -2,6 +2,7 @@ import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
 import type {
   UpdateIncentiveSettingsInput,
   UpdateUserRateInput,
+  UpdateUserTargetInput,
   CreateAdjustmentInput,
   CreatePayoutInput,
   ListIncentivesQuery,
@@ -13,6 +14,10 @@ import {
   getCurrentAndPreviousPeriod,
   type PeriodEarning,
 } from "../incentive/incentive.calculator.js";
+import {
+  syncTargetBonusInTransaction,
+  syncUserTargetBonusAdjustment,
+} from "../incentive/target-bonus.service.js";
 import {
   DEFAULT_INCENTIVE_RATE_PAISE,
   getCachedBusinessSettings,
@@ -75,6 +80,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
             id: true,
             sellerId: true,
             quantity: true,
+            totalPaise: true,
             incentiveRatePaise: true,
             incentiveAmountPaise: true,
             confirmedAt: true,
@@ -134,12 +140,40 @@ export function createAdminIncentiveService(database: PrismaClient) {
         arr.push(payout);
       }
 
-      const items = users.map((user) => {
+      const items = await Promise.all(
+        users.map(async (user) => {
           const sales = salesByUser.get(user.id) ?? [];
-          const adjustments = adjustmentsByUser.get(user.id) ?? [];
+          const baseAdjustments = adjustmentsByUser.get(user.id) ?? [];
           const payouts = payoutsByUser.get(user.id) ?? [];
           const effectiveRatePaise =
             user.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
+
+          const { progress: targetProgress, createdAdjustment } =
+            await syncUserTargetBonusAdjustment(database, {
+              userId: user.id,
+              salesTargetPackets: user.salesTargetPackets,
+              salesTargetPeriod: user.salesTargetPeriod,
+              targetBonusPaise: user.targetBonusPaise,
+              confirmedSales: sales,
+              existingAdjustments: baseAdjustments,
+              actorUserId: user.id,
+              referenceDate: now,
+            });
+
+          const adjustments = createdAdjustment
+            ? [
+                ...baseAdjustments,
+                {
+                  id: createdAdjustment.id,
+                  userId: user.id,
+                  type: createdAdjustment.type,
+                  amountPaise: createdAdjustment.amountPaise,
+                  reason: createdAdjustment.reason,
+                  adjustmentDate: createdAdjustment.adjustmentDate,
+                  createdAt: createdAdjustment.createdAt,
+                },
+              ]
+            : baseAdjustments;
 
           const summary = calculateUserIncentiveSummary(
             user.id,
@@ -187,8 +221,13 @@ export function createAdminIncentiveService(database: PrismaClient) {
             previousMonth: summary.previousMonth,
             olderPendingPaise: summary.olderPendingPaise,
             periods: summary.periods,
+            salesTargetPackets: targetProgress.targetPackets,
+            salesTargetPeriod: targetProgress.period,
+            targetBonusPaise: targetProgress.bonusPaise,
+            targetProgress,
           };
-        });
+        })
+      );
 
       // Filter by payment status if requested
       const filteredItems = query.status && query.status !== "ALL"
@@ -210,8 +249,12 @@ export function createAdminIncentiveService(database: PrismaClient) {
       let prevMonthPendingPaise = 0;
       let olderPendingPaise = 0;
       let pendingEmployeesCount = 0;
+      let targetsAssignedCount = 0;
+      let targetsAchievedCount = 0;
 
       for (const item of items) {
+        if (item.targetProgress.hasTarget) targetsAssignedCount++;
+        if (item.targetProgress.isAchieved) targetsAchievedCount++;
         totalEarnedPaise += item.earnedPaise;
         totalAdditionsPaise += item.additionsPaise;
         totalDeductionsPaise += item.deductionsPaise;
@@ -270,6 +313,8 @@ export function createAdminIncentiveService(database: PrismaClient) {
         olderPendingPaise,
         olderPendingRupees: olderPendingPaise / 100,
         pendingEmployeesCount,
+        targetsAssignedCount,
+        targetsAchievedCount,
       };
 
       return {
@@ -330,10 +375,37 @@ export function createAdminIncentiveService(database: PrismaClient) {
 
       const effectiveRatePaise =
         user.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
+      const { progress: targetProgress, createdAdjustment } =
+        await syncUserTargetBonusAdjustment(database, {
+          userId: user.id,
+          salesTargetPackets: user.salesTargetPackets,
+          salesTargetPeriod: user.salesTargetPeriod,
+          targetBonusPaise: user.targetBonusPaise,
+          confirmedSales: sales,
+          existingAdjustments: adjustments,
+          actorUserId: user.id,
+          referenceDate: now,
+        });
+      const resolvedAdjustments = createdAdjustment
+        ? ([
+            {
+              id: createdAdjustment.id,
+              userId: user.id,
+              type: createdAdjustment.type,
+              amountPaise: createdAdjustment.amountPaise,
+              reason: createdAdjustment.reason,
+              adjustmentDate: createdAdjustment.adjustmentDate,
+              createdAt: createdAdjustment.createdAt,
+              createdById: createdAdjustment.createdById ?? user.id,
+              createdBy: createdAdjustment.createdBy ?? { id: user.id, name: user.name },
+            },
+            ...adjustments,
+          ] as typeof adjustments)
+        : adjustments;
       const summary = calculateUserIncentiveSummary(
         user.id,
         sales,
-        adjustments,
+        resolvedAdjustments,
         payouts,
         now,
         effectiveRatePaise
@@ -356,20 +428,25 @@ export function createAdminIncentiveService(database: PrismaClient) {
           effectiveRatePaise,
           effectiveRateRupees: effectiveRatePaise / 100,
           isCustomRate: user.incentiveRatePaise !== null && user.incentiveRatePaise !== undefined,
+          salesTargetPackets: targetProgress.targetPackets,
+          salesTargetPeriod: targetProgress.period,
+          targetBonusPaise: targetProgress.bonusPaise,
         },
+        targetProgress,
         summary: {
           ...summary,
           earnedPaise: summary.salesIncentivePaise,
           paidPaise: summary.totalPaidPaise,
         },
         rateHistory: user.incentiveRateHistory,
-        adjustments,
+        adjustments: resolvedAdjustments,
         payouts,
         sales: sales.map((sale) => ({
           id: sale.id,
           confirmedAt: sale.confirmedAt ?? sale.createdAt,
           customer: sale.customer,
           quantity: sale.quantity,
+          totalPaise: sale.totalPaise,
           incentiveRatePaise: sale.incentiveRatePaise ?? effectiveRatePaise,
           incentiveAmountPaise:
             sale.incentiveAmountPaise ?? sale.quantity * (sale.incentiveRatePaise ?? effectiveRatePaise),
@@ -453,11 +530,139 @@ export function createAdminIncentiveService(database: PrismaClient) {
       });
     },
 
-    createAdjustment: async (adminId: string, userId: string, input: CreateAdjustmentInput) => {
+    updateUserTarget: async (adminId: string, userId: string, input: UpdateUserTargetInput) => {
       const [user, settings] = await Promise.all([
         database.user.findUnique({
           where: { id: userId },
           select: { id: true, name: true, role: true, incentiveRatePaise: true },
+        }),
+        getOrCreateSettings(),
+      ]);
+
+      if (!user) {
+        throw new HttpError(404, "Employee not found");
+      }
+
+      if (user.role !== "SELLER" && user.role !== "MANAGER") {
+        throw new HttpError(400, "Sales target can only be assigned to Sellers or Managers");
+      }
+
+      const normalizedPackets =
+        input.salesTargetPackets !== null && input.salesTargetPackets > 0
+          ? Math.round(input.salesTargetPackets)
+          : null;
+      const normalizedBonus =
+        normalizedPackets !== null &&
+        typeof input.targetBonusPaise === "number" &&
+        input.targetBonusPaise > 0
+          ? Math.round(input.targetBonusPaise)
+          : null;
+      const effectiveRatePaise =
+        user.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
+      const now = new Date();
+
+      return database.$transaction(async (tx) => {
+        const updatedUser = await tx.user.update({
+          where: { id: userId },
+          data: {
+            salesTargetPackets: normalizedPackets,
+            salesTargetPeriod: input.salesTargetPeriod,
+            targetBonusPaise: normalizedBonus,
+          },
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            salesTargetPackets: true,
+            salesTargetPeriod: true,
+            targetBonusPaise: true,
+          },
+        });
+
+        const [sales, adjustments, payouts] = await Promise.all([
+          tx.sale.findMany({
+            where: { sellerId: userId, status: { in: ["CONFIRMED", "COMPLETED"] } },
+            select: {
+              id: true,
+              quantity: true,
+              totalPaise: true,
+              incentiveRatePaise: true,
+              incentiveAmountPaise: true,
+              confirmedAt: true,
+              createdAt: true,
+            },
+          }),
+          tx.incentiveAdjustment.findMany({
+            where: { userId },
+            orderBy: { adjustmentDate: "desc" },
+            select: {
+              id: true,
+              type: true,
+              amountPaise: true,
+              reason: true,
+              adjustmentDate: true,
+              createdAt: true,
+            },
+          }),
+          tx.incentivePayout.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              amountPaise: true,
+              paymentDate: true,
+              paymentMethod: true,
+              referenceId: true,
+              remarks: true,
+              createdAt: true,
+              allocations: true,
+            },
+          }),
+        ]);
+
+        const { progress, adjustments: syncedAdjustments } = await syncTargetBonusInTransaction(tx, {
+          userId,
+          salesTargetPackets: updatedUser.salesTargetPackets,
+          salesTargetPeriod: updatedUser.salesTargetPeriod,
+          targetBonusPaise: updatedUser.targetBonusPaise,
+          confirmedSales: sales,
+          adjustments,
+          payouts,
+          effectiveRatePaise,
+          actorUserId: adminId,
+          allowModifyExistingForActivePeriod: true,
+          referenceDate: now,
+        });
+
+        const summary = calculateUserIncentiveSummary(
+          userId,
+          sales,
+          syncedAdjustments,
+          payouts,
+          now,
+          effectiveRatePaise
+        );
+
+        return {
+          user: updatedUser,
+          targetProgress: progress,
+          summary,
+        };
+      });
+    },
+
+    createAdjustment: async (adminId: string, userId: string, input: CreateAdjustmentInput) => {
+      const [user, settings] = await Promise.all([
+        database.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            incentiveRatePaise: true,
+            salesTargetPackets: true,
+            salesTargetPeriod: true,
+            targetBonusPaise: true,
+          },
         }),
         getOrCreateSettings(),
       ]);
@@ -475,7 +680,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
           const [sales, adjustments, payouts] = await Promise.all([
             tx.sale.findMany({
               where: { sellerId: userId, status: { in: ["CONFIRMED", "COMPLETED"] } },
-              select: { id: true, quantity: true, incentiveRatePaise: true, incentiveAmountPaise: true, confirmedAt: true, createdAt: true },
+              select: { id: true, quantity: true, totalPaise: true, incentiveRatePaise: true, incentiveAmountPaise: true, confirmedAt: true, createdAt: true },
             }),
             tx.incentiveAdjustment.findMany({
               where: { userId },
@@ -487,10 +692,22 @@ export function createAdminIncentiveService(database: PrismaClient) {
             }),
           ]);
 
+          const { adjustments: syncedAdjustments } = await syncTargetBonusInTransaction(tx, {
+            userId,
+            salesTargetPackets: user.salesTargetPackets,
+            salesTargetPeriod: user.salesTargetPeriod,
+            targetBonusPaise: user.targetBonusPaise,
+            confirmedSales: sales,
+            adjustments,
+            payouts,
+            effectiveRatePaise,
+            actorUserId: adminId,
+          });
+
           const summary = calculateUserIncentiveSummary(
             userId,
             sales,
-            adjustments,
+            syncedAdjustments,
             payouts,
             new Date(),
             effectiveRatePaise
@@ -539,7 +756,15 @@ export function createAdminIncentiveService(database: PrismaClient) {
       const [user, settings] = await Promise.all([
         database.user.findUnique({
           where: { id: userId },
-          select: { id: true, name: true, role: true, incentiveRatePaise: true },
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            incentiveRatePaise: true,
+            salesTargetPackets: true,
+            salesTargetPeriod: true,
+            targetBonusPaise: true,
+          },
         }),
         getOrCreateSettings(),
       ]);
@@ -556,7 +781,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
         const [sales, adjustments, payouts] = await Promise.all([
           tx.sale.findMany({
             where: { sellerId: userId, status: { in: ["CONFIRMED", "COMPLETED"] } },
-            select: { id: true, quantity: true, incentiveRatePaise: true, incentiveAmountPaise: true, confirmedAt: true, createdAt: true },
+            select: { id: true, quantity: true, totalPaise: true, incentiveRatePaise: true, incentiveAmountPaise: true, confirmedAt: true, createdAt: true },
           }),
           tx.incentiveAdjustment.findMany({
             where: { userId },
@@ -568,10 +793,22 @@ export function createAdminIncentiveService(database: PrismaClient) {
           }),
         ]);
 
+        const { adjustments: syncedAdjustments } = await syncTargetBonusInTransaction(tx, {
+          userId,
+          salesTargetPackets: user.salesTargetPackets,
+          salesTargetPeriod: user.salesTargetPeriod,
+          targetBonusPaise: user.targetBonusPaise,
+          confirmedSales: sales,
+          adjustments,
+          payouts,
+          effectiveRatePaise,
+          actorUserId: adminId,
+        });
+
         const summary = calculateUserIncentiveSummary(
           userId,
           sales,
-          adjustments,
+          syncedAdjustments,
           payouts,
           new Date(),
           effectiveRatePaise
