@@ -3,7 +3,7 @@ import type { SellerSalesService } from "../../services/seller/sales.service.js"
 import type { PublicUser } from "../../services/auth/auth.types.js";
 import { parseInput, idSchema } from "../../middleware/validation.js";
 import { createSaleSchema, listSalesSchema, updateSaleSchema } from "../sales.validation.js";
-import { collectPaymentSchema } from "../payment.validation.js";
+import { collectPaymentSchema, markPaymentSentSchema } from "../payment.validation.js";
 
 export function createSellerSalesController(service: SellerSalesService) {
   return {
@@ -61,6 +61,18 @@ export function createSellerSalesController(service: SellerSalesService) {
         success: true,
         message: "Pending payment collected successfully",
         data: result,
+      });
+    },
+
+    markPaymentSent: async (request: Request, response: Response) => {
+      const user = response.locals.authUser as PublicUser;
+      const id = parseInput(idSchema, request.params["id"]);
+      const input = parseInput(markPaymentSentSchema, request.body ?? {});
+      const sale = await service.markPaymentSent(user.id, id, input);
+      response.json({
+        success: true,
+        message: "Payment marked as sent to FemmeFlo company",
+        data: { sale },
       });
     },
   };

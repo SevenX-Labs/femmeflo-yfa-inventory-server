@@ -18,6 +18,7 @@ import { createSellerInventoryRoutes } from "./seller/inventory.routes.js";
 import { createSellerSalesRoutes } from "./seller/sales.routes.js";
 import { createAdminSalesRoutes } from "./admin/sales.routes.js";
 import { createAdminApprovalRoutes } from "./admin/approval.routes.js";
+import { createNotificationRoutes } from "./notification.routes.js";
 import { createManagerSalesRoutes } from "./manager/sales.routes.js";
 import { createAdminIncentiveRoutes } from "./admin/incentive.routes.js";
 import { createSellerIncentiveRoutes } from "./seller/incentive.routes.js";
@@ -80,7 +81,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
           },
         });
 
-        if (!sale || sale.status !== "CONFIRMED") {
+        if (!sale || (sale.status !== "CONFIRMED" && sale.status !== "COMPLETED")) {
           response.status(404).json({ success: false, message: "Invoice not found" });
           return;
         }
@@ -191,6 +192,9 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
 
   // Real-time Event Streaming & Sync
   router.use("/realtime", createRealtimeRoutes(auth));
+
+  // In-app Notifications
+  router.use("/notifications", authenticate, createNotificationRoutes(database));
 
   // Geocoding
   router.use("/geo", authenticate, createGeoRoutes());

@@ -52,7 +52,7 @@ export function createManagerInventoryService(database: PrismaClient) {
           ? database.sale.groupBy({
               by: ["sellerId"],
               _sum: { quantity: true },
-              where: { sellerId: { in: sellerIds }, status: "CONFIRMED" },
+              where: { sellerId: { in: sellerIds }, status: { in: ["CONFIRMED", "COMPLETED"] } },
             })
           : Promise.resolve([]),
       ]);

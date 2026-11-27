@@ -70,7 +70,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
 
       const [allSales, allAdjustments, allPayouts] = await Promise.all([
         database.sale.findMany({
-          where: { sellerId: { in: userIds }, status: "CONFIRMED" },
+          where: { sellerId: { in: userIds }, status: { in: ["CONFIRMED", "COMPLETED"] } },
           select: {
             id: true,
             sellerId: true,
@@ -303,7 +303,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
       const now = new Date();
       const [sales, adjustments, payouts] = await Promise.all([
         database.sale.findMany({
-          where: { sellerId: user.id, status: "CONFIRMED" },
+          where: { sellerId: user.id, status: { in: ["CONFIRMED", "COMPLETED"] } },
           orderBy: { confirmedAt: "desc" },
           include: {
             customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
@@ -424,7 +424,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
         const salesToUpdate = await tx.sale.findMany({
           where: {
             sellerId: userId,
-            status: "CONFIRMED",
+            status: { in: ["CONFIRMED", "COMPLETED"] },
             ...(shouldRecalcAll
               ? {}
               : { OR: [{ incentiveAmountPaise: null }, { incentiveRatePaise: null }] }),
@@ -474,7 +474,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
         if (input.type === "DEDUCT") {
           const [sales, adjustments, payouts] = await Promise.all([
             tx.sale.findMany({
-              where: { sellerId: userId, status: "CONFIRMED" },
+              where: { sellerId: userId, status: { in: ["CONFIRMED", "COMPLETED"] } },
               select: { id: true, quantity: true, incentiveRatePaise: true, incentiveAmountPaise: true, confirmedAt: true, createdAt: true },
             }),
             tx.incentiveAdjustment.findMany({
@@ -555,7 +555,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
         // Concurrency protection: fetch active sales, adjustments, payouts to calculate exact balance
         const [sales, adjustments, payouts] = await Promise.all([
           tx.sale.findMany({
-            where: { sellerId: userId, status: "CONFIRMED" },
+            where: { sellerId: userId, status: { in: ["CONFIRMED", "COMPLETED"] } },
             select: { id: true, quantity: true, incentiveRatePaise: true, incentiveAmountPaise: true, confirmedAt: true, createdAt: true },
           }),
           tx.incentiveAdjustment.findMany({
@@ -680,7 +680,7 @@ export function createAdminIncentiveService(database: PrismaClient) {
           const salesToRecalc = await database.sale.findMany({
             where: {
               sellerId: { in: targetIds },
-              status: "CONFIRMED",
+              status: { in: ["CONFIRMED", "COMPLETED"] },
               ...(input.applyToUnpaid
                 ? {}
                 : { OR: [{ incentiveAmountPaise: null }, { incentiveRatePaise: null }] }),

@@ -39,6 +39,7 @@ enum PaymentMode {
 enum SaleStatus {
   PENDING_APPROVAL
   CONFIRMED
+  COMPLETED
   REJECTED
 }
 
@@ -105,6 +106,8 @@ model User {
   incentivePayouts     IncentivePayout[]      @relation("UserIncentivePayouts")
   payoutsCreated       IncentivePayout[]      @relation("IncentivePayoutCreator")
   shifts               Shift[]                @relation("SellerShifts")
+  paymentsSent         Sale[]                 @relation("SalePaymentSender")
+  paymentsReceived     Sale[]                 @relation("SalePaymentReceiver")
 
   @@index([managerId])
   @@index([managerId, active])
@@ -275,6 +278,14 @@ model Sale {
   customerFeedback      String?
   incentiveRatePaise    Int?
   incentiveAmountPaise  Int?
+  paymentSentAt         DateTime?
+  paymentSentRemark     String?
+  paymentSentById       String? @db.Uuid
+  paymentSentBy         User?   @relation("SalePaymentSender", fields: [paymentSentById], references: [id])
+  paymentReceivedAt     DateTime?
+  paymentReceivedRemark String?
+  paymentReceivedById   String? @db.Uuid
+  paymentReceivedBy     User?   @relation("SalePaymentReceiver", fields: [paymentReceivedById], references: [id])
   requestKey            String? @unique
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -289,6 +300,7 @@ model Sale {
   @@index([sellerId, status, createdAt])
   @@index([status, createdAt])
   @@index([status, paymentMode, createdAt])
+  @@index([status, paymentSentAt, createdAt])
   @@index([customerId])
   @@index([customerId, createdAt])
   @@index([decidedById])

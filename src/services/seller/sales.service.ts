@@ -3,6 +3,7 @@ import type { CreateSaleInput, ListSalesInput, UpdateSaleInput } from "../../con
 import { HttpError } from "../../middleware/validation.js";
 import { processInvoicePdf } from "../pdf.service.js";
 import { createInvoiceWithSequentialNumber } from "../invoice/invoiceNumber.js";
+import { markSalePaymentSent } from "../sales/remittance.service.js";
 import { getISTPeriodDateRange } from "../../utils/timezone.utils.js";
 import { getCachedBusinessSettings, invalidateBusinessSettingsCache } from "../settings.cache.js";
 import { realtimeHub } from "../realtime/realtime.service.js";
@@ -403,6 +404,8 @@ export function createSellerSalesService(database: PrismaClient) {
             customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
             seller: { select: { id: true, name: true, phone: true } },
             invoice: { select: { id: true, number: true } },
+            paymentSentBy: { select: { id: true, name: true } },
+            paymentReceivedBy: { select: { id: true, name: true } },
             lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
           },
         }),
@@ -428,6 +431,8 @@ export function createSellerSalesService(database: PrismaClient) {
           seller: { select: { id: true, name: true, phone: true } },
           invoice: true,
           payments: true,
+          paymentSentBy: { select: { id: true, name: true } },
+          paymentReceivedBy: { select: { id: true, name: true } },
           lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
         },
       });
@@ -436,6 +441,14 @@ export function createSellerSalesService(database: PrismaClient) {
         throw new HttpError(404, "Sale record not found");
       }
       return sale;
+    },
+
+    markPaymentSent: async (
+      sellerId: string,
+      saleId: string,
+      input: { remark?: string | undefined; sentAt?: string | undefined }
+    ) => {
+      return markSalePaymentSent(database, sellerId, saleId, input);
     },
 
     collectPayment: async (sellerId: string, saleId: string, mode: "CASH" | "BANK") => {
@@ -484,6 +497,9 @@ export function createSellerSalesService(database: PrismaClient) {
 
       if (!sale || sale.sellerId !== sellerId) {
         throw new HttpError(404, "Sale record not found");
+      }
+      if (sale.status === "COMPLETED") {
+        throw new HttpError(409, "Completed sales whose payment has been received by FemmeFlo cannot be modified.");
       }
 
       // 48-hour edit window rule for Seller

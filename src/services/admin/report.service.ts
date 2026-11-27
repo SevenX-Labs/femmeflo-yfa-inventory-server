@@ -10,7 +10,7 @@ export function createAdminReportService(database: PrismaClient) {
       if (query.status) {
         where.status = query.status;
       } else {
-        where.status = "CONFIRMED";
+        where.status = { in: ["CONFIRMED", "COMPLETED"] };
       }
 
       if (query.paymentMode) where.paymentMode = query.paymentMode;

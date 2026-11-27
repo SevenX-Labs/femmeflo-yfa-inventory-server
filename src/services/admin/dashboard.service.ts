@@ -6,7 +6,7 @@ export function createAdminDashboardService(database: PrismaClient) {
   return {
     getDashboard: async (filters: DashboardFilterInput) => {
       // Build filters for sales
-      const salesWhere: Prisma.SaleWhereInput = { status: "CONFIRMED" };
+      const salesWhere: Prisma.SaleWhereInput = { status: { in: ["CONFIRMED", "COMPLETED"] } };
 
       if (filters.sellerId) salesWhere.sellerId = filters.sellerId;
 

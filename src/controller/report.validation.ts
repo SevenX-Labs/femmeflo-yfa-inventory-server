@@ -11,7 +11,7 @@ export const salesReportQuerySchema = z.strictObject({
   managerId: z.uuid().optional(),
   sellerId: z.uuid().optional(),
   paymentMode: z.enum(["CASH", "BANK", "PENDING"]).optional(),
-  status: z.enum(["CONFIRMED", "PENDING_APPROVAL", "REJECTED"]).optional(),
+  status: z.enum(["CONFIRMED", "COMPLETED", "PENDING_APPROVAL", "REJECTED"]).optional(),
   groupBy: z.enum(["date", "seller", "manager", "state", "district", "village"]).optional(),
   format: z.enum(["json", "csv", "xlsx"]).default("json"),
 });

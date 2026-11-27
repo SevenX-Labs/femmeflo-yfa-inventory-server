@@ -4,6 +4,7 @@ import { HttpError } from "../../middleware/validation.js";
 import { getPeriodDateRange } from "../seller/sales.service.js";
 import { processInvoicePdf } from "../pdf.service.js";
 import { createInvoiceWithSequentialNumber } from "../invoice/invoiceNumber.js";
+import { receiveAndCompleteSales } from "../sales/remittance.service.js";
 import { getCachedBusinessSettings } from "../settings.cache.js";
 
 export function createAdminSalesService(database: PrismaClient) {
@@ -24,6 +25,7 @@ export function createAdminSalesService(database: PrismaClient) {
           { customer: { shopName: { contains: query.search, mode: "insensitive" } } },
           { customer: { contactName: { contains: query.search, mode: "insensitive" } } },
           { seller: { name: { contains: query.search, mode: "insensitive" } } },
+          { invoice: { number: { contains: query.search, mode: "insensitive" } } },
         ];
       }
 
@@ -38,6 +40,8 @@ export function createAdminSalesService(database: PrismaClient) {
             customer: { select: { id: true, shopName: true, contactName: true, phone: true, state: true, district: true, village: true } },
             seller: { select: { id: true, name: true, phone: true } },
             invoice: { select: { id: true, number: true } },
+            paymentSentBy: { select: { id: true, name: true } },
+            paymentReceivedBy: { select: { id: true, name: true } },
             lineItems: {
               select: {
                 id: true,
@@ -72,6 +76,8 @@ export function createAdminSalesService(database: PrismaClient) {
           invoice: true,
           payments: true,
           decidedBy: { select: { id: true, name: true } },
+          paymentSentBy: { select: { id: true, name: true } },
+          paymentReceivedBy: { select: { id: true, name: true } },
           lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
         },
       });
@@ -91,6 +97,9 @@ export function createAdminSalesService(database: PrismaClient) {
 
       if (!sale) {
         throw new HttpError(404, "Sale record not found");
+      }
+      if (sale.status === "COMPLETED") {
+        throw new HttpError(409, "Completed sales whose payment has been received by FemmeFlo cannot be edited.");
       }
 
       let targetCustomer = sale.customer;
@@ -395,6 +404,22 @@ export function createAdminSalesService(database: PrismaClient) {
       }
 
       return result.sale;
+    },
+
+    receivePayment: async (
+      adminId: string,
+      saleId: string,
+      input: { remark?: string | undefined; receivedAt?: string | undefined }
+    ) => {
+      const [completed] = await receiveAndCompleteSales(database, adminId, [saleId], input);
+      return completed!;
+    },
+
+    bulkComplete: async (
+      adminId: string,
+      input: { saleIds: string[]; remark?: string | undefined; receivedAt?: string | undefined }
+    ) => {
+      return receiveAndCompleteSales(database, adminId, input.saleIds, input);
     },
   };
 }

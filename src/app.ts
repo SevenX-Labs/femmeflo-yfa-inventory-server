@@ -124,7 +124,7 @@ export function createApp({
       data: {
         status: "ok",
         database: checkDatabase ? "configured" : "not_configured",
-        revision: "2026-11-27-invoice-v3",
+        revision: "2026-11-27-remittance-v1",
       },
     });
   });

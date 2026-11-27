@@ -24,17 +24,17 @@ export function createSellerDashboardService(database: PrismaClient) {
         database.user.findUnique({ where: { id: sellerId }, select: { incentiveRatePaise: true } }),
         database.sale.aggregate({
           _sum: { quantity: true, totalPaise: true, incentiveAmountPaise: true },
-          where: { sellerId, status: "CONFIRMED" },
+          where: { sellerId, status: { in: ["CONFIRMED", "COMPLETED"] } },
         }),
         database.sale.findMany({
-          where: { sellerId, status: "CONFIRMED", incentiveAmountPaise: null },
+          where: { sellerId, status: { in: ["CONFIRMED", "COMPLETED"] }, incentiveAmountPaise: null },
           select: { quantity: true, incentiveRatePaise: true },
         }),
         database.sale.aggregate({
           _sum: { quantity: true, totalPaise: true },
           where: {
             sellerId,
-            status: "CONFIRMED",
+            status: { in: ["CONFIRMED", "COMPLETED"] },
             ...(todayRange ? { createdAt: todayRange } : {}),
           },
         }),
@@ -42,14 +42,14 @@ export function createSellerDashboardService(database: PrismaClient) {
           _sum: { quantity: true, totalPaise: true },
           where: {
             sellerId,
-            status: "CONFIRMED",
+            status: { in: ["CONFIRMED", "COMPLETED"] },
             ...(thisMonthRange ? { createdAt: thisMonthRange } : {}),
           },
         }),
         database.sale.count({
           where: {
             sellerId,
-            status: "CONFIRMED",
+            status: { in: ["CONFIRMED", "COMPLETED"] },
             ...(todayRange ? { createdAt: todayRange } : {}),
           },
         }),

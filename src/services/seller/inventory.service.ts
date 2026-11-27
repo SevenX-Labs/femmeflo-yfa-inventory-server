@@ -29,7 +29,7 @@ export function createSellerInventoryService(database: PrismaClient) {
         }),
         database.sale.aggregate({
           _sum: { quantity: true },
-          where: { sellerId, status: "CONFIRMED" },
+          where: { sellerId, status: { in: ["CONFIRMED", "COMPLETED"] } },
         }),
         database.productBalance.findMany({
           where: { stockLocationId: location.id },

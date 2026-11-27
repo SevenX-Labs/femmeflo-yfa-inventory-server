@@ -14,7 +14,7 @@ export function createSellerIncentiveService(database: PrismaClient) {
           select: { incentiveRatePaise: true },
         }),
         database.sale.findMany({
-          where: { sellerId, status: "CONFIRMED" },
+          where: { sellerId, status: { in: ["CONFIRMED", "COMPLETED"] } },
           orderBy: { confirmedAt: "desc" },
           include: {
             customer: { select: { id: true, shopName: true, contactName: true } },

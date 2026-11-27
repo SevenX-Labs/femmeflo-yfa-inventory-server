@@ -27,7 +27,7 @@ export const createSaleSchema = z.union([
 export const listSalesSchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(100_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  status: z.enum(["PENDING_APPROVAL", "CONFIRMED", "REJECTED"]).optional(),
+  status: z.enum(["PENDING_APPROVAL", "CONFIRMED", "COMPLETED", "REJECTED"]).optional(),
   paymentMode: z.enum(["CASH", "BANK", "PENDING"]).optional(),
   period: z.enum(["all", "this_month", "last_month"]).optional(),
   customerId: z.string().uuid().optional(),

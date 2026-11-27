@@ -23,7 +23,7 @@ export function createManagerDashboardService(database: PrismaClient) {
           { seller: sellerScope },
           { sellerId: manager.id },
         ],
-        status: "CONFIRMED",
+        status: { in: ["CONFIRMED", "COMPLETED"] },
       };
 
       const [totalSellers, totalCustomers, salesAggregate, sellers] = await Promise.all([

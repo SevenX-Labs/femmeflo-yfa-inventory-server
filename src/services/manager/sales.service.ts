@@ -50,6 +50,8 @@ export function createManagerSalesService(database: PrismaClient) {
             customer: { select: { id: true, shopName: true, contactName: true, phone: true } },
             seller: { select: { id: true, name: true, phone: true } },
             invoice: { select: { id: true, number: true } },
+            paymentSentBy: { select: { id: true, name: true } },
+            paymentReceivedBy: { select: { id: true, name: true } },
             lineItems: {
               select: {
                 id: true,
@@ -83,6 +85,8 @@ export function createManagerSalesService(database: PrismaClient) {
           seller: { select: { id: true, name: true, phone: true, managerId: true } },
           invoice: true,
           payments: true,
+          paymentSentBy: { select: { id: true, name: true } },
+          paymentReceivedBy: { select: { id: true, name: true } },
           lineItems: { include: { product: { select: { id: true, name: true, sku: true } } } },
         },
       });
@@ -108,6 +112,9 @@ export function createManagerSalesService(database: PrismaClient) {
 
       if (!sale || (sale.seller.managerId !== manager.id && sale.sellerId !== manager.id)) {
         throw new HttpError(404, "Sale record not found or outside assigned scope");
+      }
+      if (sale.status === "COMPLETED") {
+        throw new HttpError(409, "Completed sales whose payment has been received by FemmeFlo cannot be edited.");
       }
 
       let targetCustomer = sale.customer;

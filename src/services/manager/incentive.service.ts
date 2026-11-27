@@ -20,7 +20,7 @@ export function createManagerIncentiveService(database: PrismaClient) {
           select: { incentiveRatePaise: true },
         }),
         database.sale.findMany({
-          where: { sellerId: manager.id, status: "CONFIRMED" },
+          where: { sellerId: manager.id, status: { in: ["CONFIRMED", "COMPLETED"] } },
           orderBy: { confirmedAt: "desc" },
           include: {
             customer: { select: { id: true, shopName: true, contactName: true } },
@@ -126,7 +126,7 @@ export function createManagerIncentiveService(database: PrismaClient) {
 
       const [teamSales, teamAdjustments, teamPayouts] = await Promise.all([
         database.sale.findMany({
-          where: { sellerId: { in: teamSellerIds }, status: "CONFIRMED" },
+          where: { sellerId: { in: teamSellerIds }, status: { in: ["CONFIRMED", "COMPLETED"] } },
           select: {
             id: true,
             sellerId: true,
