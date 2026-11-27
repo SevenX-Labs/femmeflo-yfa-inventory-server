@@ -225,12 +225,14 @@ export function isGpsAccuracyPoor(accuracy: number | undefined | null): boolean 
 export function buildAddressQuery(parts: {
   shopNumber?: string | undefined;
   streetName?: string | undefined;
+  address?: string | undefined;
   village?: string | undefined;
   district?: string | undefined;
   state?: string | undefined;
   pincode?: string | undefined;
 }): string {
-  return [parts.shopNumber, parts.streetName, parts.village, parts.district, parts.state, parts.pincode]
+  const streetOrAddr = parts.streetName || parts.address;
+  return [parts.shopNumber, streetOrAddr, parts.village, parts.district, parts.state, parts.pincode]
     .filter(Boolean)
     .join(", ");
 }

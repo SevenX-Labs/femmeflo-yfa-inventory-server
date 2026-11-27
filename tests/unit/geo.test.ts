@@ -7,7 +7,7 @@ import {
   calculateHaversineDistanceKm,
   INDIA_BOUNDS,
 } from "../../src/utils/geo.utils.js";
-import { parseGeocodeResult } from "../../src/services/geocoding.service.js";
+import { parseGeocodeResult, buildAddressQuery } from "../../src/services/geocoding.service.js";
 import { calculateRouteDistanceKm } from "../../src/utils/distance.utils.js";
 
 test("GPS / Geolocation Validation Unit Tests", async (t) => {
@@ -164,5 +164,27 @@ test("GPS / Geolocation Validation Unit Tests", async (t) => {
     } finally {
       if (prevKey !== undefined) process.env["GOOGLE_MAPS_API_KEY"] = prevKey;
     }
+  });
+
+  await t.test("buildAddressQuery uses streetName when provided and falls back to address otherwise", () => {
+    const withStreet = buildAddressQuery({
+      shopNumber: "Shop 12",
+      streetName: "Ghodbunder Road",
+      address: "Should not duplicate when streetName present",
+      village: "Manpada",
+      district: "Thane",
+      state: "Maharashtra",
+      pincode: "400607",
+    });
+    assert.equal(withStreet, "Shop 12, Ghodbunder Road, Manpada, Thane, Maharashtra, 400607");
+
+    const fallbackToAddress = buildAddressQuery({
+      address: "Shop 4, Gokhale Road, Naupada",
+      village: "Thane West",
+      district: "Thane",
+      state: "Maharashtra",
+      pincode: "400602",
+    });
+    assert.equal(fallbackToAddress, "Shop 4, Gokhale Road, Naupada, Thane West, Thane, Maharashtra, 400602");
   });
 });

@@ -390,11 +390,32 @@ export function createShiftService(database: PrismaClient) {
           take: query.pageSize,
           orderBy: { startTime: "desc" },
           include: {
-            seller: { select: { id: true, name: true, phone: true, employeeCode: true } },
+            seller: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                employeeCode: true,
+                district: true,
+                state: true,
+                village: true,
+              },
+            },
             visits: {
               orderBy: { checkInTime: "asc" },
               include: {
-                customer: { select: { id: true, shopName: true, phone: true } },
+                customer: {
+                  select: {
+                    id: true,
+                    shopName: true,
+                    phone: true,
+                    address: true,
+                    district: true,
+                    state: true,
+                    village: true,
+                    pincode: true,
+                  },
+                },
                 sale: { select: { id: true, totalPaise: true, quantity: true, paymentMode: true, status: true, customerFeedback: true } },
               },
             },
@@ -429,10 +450,43 @@ export function createShiftService(database: PrismaClient) {
       const shift = await database.shift.findUnique({
         where: { id: shiftId },
         include: {
-          seller: { select: { id: true, name: true, phone: true, employeeCode: true } },
+          seller: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              employeeCode: true,
+              district: true,
+              state: true,
+              village: true,
+            },
+          },
           visits: {
             orderBy: { checkInTime: "asc" },
-            include: { customer: { select: { id: true, shopName: true, phone: true } } },
+            include: {
+              customer: {
+                select: {
+                  id: true,
+                  shopName: true,
+                  phone: true,
+                  address: true,
+                  district: true,
+                  state: true,
+                  village: true,
+                  pincode: true,
+                },
+              },
+              sale: {
+                select: {
+                  id: true,
+                  totalPaise: true,
+                  quantity: true,
+                  paymentMode: true,
+                  status: true,
+                  customerFeedback: true,
+                },
+              },
+            },
           },
         },
       });

@@ -183,6 +183,7 @@ export function createCustomerService(database: PrismaClient) {
         const addressQuery = buildAddressQuery({
           shopNumber: input.shopNumber,
           streetName: input.streetName,
+          address: input.address,
           village: input.village,
           district: input.district,
           state: input.state,
@@ -597,6 +598,7 @@ export function createCustomerService(database: PrismaClient) {
         const addressQuery = buildAddressQuery({
           shopNumber: input.shopNumber ?? existing.shopNumber ?? undefined,
           streetName: input.streetName ?? existing.streetName ?? undefined,
+          address: input.address ?? existing.address ?? undefined,
           village: input.village ?? existing.village ?? undefined,
           district: input.district ?? existing.district ?? undefined,
           state: input.state ?? existing.state ?? undefined,
