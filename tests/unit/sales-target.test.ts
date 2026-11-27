@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import {
   computeTargetProgress,
   calculateUserIncentiveSummary,
@@ -140,4 +142,15 @@ test("target validation schemas accept DAILY/MONTHLY updates, clearing target, a
   assert.equal(updatedSeller.dailyTarget, 35);
   assert.ok(createSellerSchema);
   assert.ok(createManagerSchema);
+});
+
+test("server startup ensures target/remittance DDL before bootstrapping admin user", () => {
+  const serverSrc = fs.readFileSync(path.resolve(process.cwd(), "server.ts"), "utf8");
+  const ddlIdx = serverSrc.indexOf("await ensureSaleRemittanceSchema(database)");
+  const bootstrapIdx = serverSrc.indexOf("await bootstrapInitialAdmin(database)");
+  assert.ok(ddlIdx !== -1 && bootstrapIdx !== -1);
+  assert.ok(
+    ddlIdx < bootstrapIdx,
+    "ensureSaleRemittanceSchema must run before bootstrapInitialAdmin so new User columns exist before querying"
+  );
 });

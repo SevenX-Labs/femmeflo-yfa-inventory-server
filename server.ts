@@ -16,8 +16,8 @@ async function start() {
   try {
     if (database) {
       await database.$queryRaw`SELECT 1`;
-      await bootstrapInitialAdmin(database);
       await ensureSaleRemittanceSchema(database);
+      await bootstrapInitialAdmin(database);
       const norm = await normalizeLegacyInvoiceNumbers(database);
       if (norm.updated > 0) {
         console.info(`Normalized ${norm.updated} legacy invoice numbers (next sequence: ${norm.nextSequence})`);

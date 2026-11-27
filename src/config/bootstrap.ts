@@ -15,10 +15,18 @@ export async function bootstrapInitialAdmin(database: PrismaClient) {
   const adminEmail = (process.env.ADMIN_EMAIL || "admin@femmeflo.in").trim().toLowerCase();
   const adminName = process.env.ADMIN_NAME || "Super Admin";
 
+  const adminSelect = {
+    id: true,
+    email: true,
+    active: true,
+  } as const;
+
   const existingAdmin = (await database.user.findFirst({
     where: { email: adminEmail },
+    select: adminSelect,
   })) || (await database.user.findFirst({
     where: { role: "SUPER_ADMIN" },
+    select: adminSelect,
   }));
 
   if (existingAdmin) {
@@ -34,6 +42,7 @@ export async function bootstrapInitialAdmin(database: PrismaClient) {
       await database.user.update({
         where: { id: existingAdmin.id },
         data: updateData,
+        select: adminSelect,
       });
       console.info(`[Bootstrap] Verified Super Admin email (${adminEmail}). DB password preserved.`);
     }
@@ -50,6 +59,7 @@ export async function bootstrapInitialAdmin(database: PrismaClient) {
       role: "SUPER_ADMIN",
       active: true,
     },
+    select: adminSelect,
   });
   console.info(`[Bootstrap] Initial Super Admin created for ${admin.email} with initial password.`);
   return admin;
