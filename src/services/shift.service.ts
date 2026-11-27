@@ -51,6 +51,65 @@ function enrichShiftWithTiming<T extends { startTime: Date; endTime: Date | null
   };
 }
 
+function buildShiftStartTimeFilter(from?: Date, to?: Date): Prisma.DateTimeFilter | undefined {
+  if (!from && !to) return undefined;
+  const startTime: Prisma.DateTimeFilter = {};
+  if (from) startTime.gte = from;
+  if (to) {
+    const toDate = new Date(to);
+    if (
+      toDate.getUTCHours() === 0 &&
+      toDate.getUTCMinutes() === 0 &&
+      toDate.getUTCSeconds() === 0 &&
+      toDate.getUTCMilliseconds() === 0
+    ) {
+      toDate.setUTCHours(23, 59, 59, 999);
+      startTime.lte = toDate;
+    } else {
+      startTime.lte = to;
+    }
+  }
+  return startTime;
+}
+
+function aggregateShiftSummary(
+  rows: Array<{
+    status: string;
+    startTime: Date;
+    endTime: Date | null;
+    totalDistanceKm: number;
+    _count: { visits: number };
+  }>,
+  nowMs: number = Date.now()
+) {
+  let activeShifts = 0;
+  let completedShifts = 0;
+  let totalVisits = 0;
+  let totalDistanceKm = 0;
+  let totalDurationSeconds = 0;
+
+  for (const row of rows) {
+    if (row.status === "ACTIVE") activeShifts += 1;
+    if (row.status === "COMPLETED") completedShifts += 1;
+    totalVisits += row._count?.visits ?? 0;
+    totalDistanceKm += Number(row.totalDistanceKm || 0);
+
+    const endMs = row.endTime ? row.endTime.getTime() : row.status === "ACTIVE" ? nowMs : row.startTime.getTime();
+    const diffSec = Math.max(0, Math.floor((endMs - row.startTime.getTime()) / 1000));
+    totalDurationSeconds += diffSec;
+  }
+
+  return {
+    totalShifts: rows.length,
+    activeShifts,
+    completedShifts,
+    totalVisits,
+    totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
+    totalDurationSeconds,
+    totalDurationMins: Math.round(totalDurationSeconds / 60),
+  };
+}
+
 export function createShiftService(database: PrismaClient) {
   return {
     startShift: async (sellerId: string, input: StartShiftInput) => {
@@ -262,26 +321,10 @@ export function createShiftService(database: PrismaClient) {
     listSellerShifts: async (sellerId: string, query: ListShiftsQuery) => {
       const where: Prisma.ShiftWhereInput = { sellerId };
       if (query.status) where.status = query.status;
-      if (query.from || query.to) {
-        where.startTime = {};
-        if (query.from) where.startTime.gte = query.from;
-        if (query.to) {
-          const toDate = new Date(query.to);
-          if (
-            toDate.getUTCHours() === 0 &&
-            toDate.getUTCMinutes() === 0 &&
-            toDate.getUTCSeconds() === 0 &&
-            toDate.getUTCMilliseconds() === 0
-          ) {
-            toDate.setUTCHours(23, 59, 59, 999);
-            where.startTime.lte = toDate;
-          } else {
-            where.startTime.lte = query.to;
-          }
-        }
-      }
+      const startTimeFilter = buildShiftStartTimeFilter(query.from, query.to);
+      if (startTimeFilter) where.startTime = startTimeFilter;
 
-      const [total, items] = await Promise.all([
+      const [total, items, summaryRows] = await Promise.all([
         database.shift.count({ where }),
         database.shift.findMany({
           where,
@@ -298,11 +341,22 @@ export function createShiftService(database: PrismaClient) {
             },
           },
         }),
+        database.shift.findMany({
+          where,
+          select: {
+            status: true,
+            startTime: true,
+            endTime: true,
+            totalDistanceKm: true,
+            _count: { select: { visits: true } },
+          },
+        }),
       ]);
 
       const totalPages = Math.ceil(total / query.pageSize);
       return {
         items: items.map(enrichShiftWithTiming),
+        summary: aggregateShiftSummary(summaryRows),
         pagination: {
           page: query.page,
           pageSize: query.pageSize,
@@ -315,24 +369,8 @@ export function createShiftService(database: PrismaClient) {
     listAllShifts: async (query: ListShiftsQuery, managerIdScope?: string) => {
       const where: Prisma.ShiftWhereInput = {};
       if (query.status) where.status = query.status;
-      if (query.from || query.to) {
-        where.startTime = {};
-        if (query.from) where.startTime.gte = query.from;
-        if (query.to) {
-          const toDate = new Date(query.to);
-          if (
-            toDate.getUTCHours() === 0 &&
-            toDate.getUTCMinutes() === 0 &&
-            toDate.getUTCSeconds() === 0 &&
-            toDate.getUTCMilliseconds() === 0
-          ) {
-            toDate.setUTCHours(23, 59, 59, 999);
-            where.startTime.lte = toDate;
-          } else {
-            where.startTime.lte = query.to;
-          }
-        }
-      }
+      const startTimeFilter = buildShiftStartTimeFilter(query.from, query.to);
+      if (startTimeFilter) where.startTime = startTimeFilter;
       if (query.sellerId) {
         where.sellerId = query.sellerId;
       } else if (query.managerId) {
@@ -344,7 +382,7 @@ export function createShiftService(database: PrismaClient) {
         ];
       }
 
-      const [total, items] = await Promise.all([
+      const [total, items, summaryRows] = await Promise.all([
         database.shift.count({ where }),
         database.shift.findMany({
           where,
@@ -362,11 +400,22 @@ export function createShiftService(database: PrismaClient) {
             },
           },
         }),
+        database.shift.findMany({
+          where,
+          select: {
+            status: true,
+            startTime: true,
+            endTime: true,
+            totalDistanceKm: true,
+            _count: { select: { visits: true } },
+          },
+        }),
       ]);
 
       const totalPages = Math.ceil(total / query.pageSize);
       return {
         items: items.map(enrichShiftWithTiming),
+        summary: aggregateShiftSummary(summaryRows),
         pagination: {
           page: query.page,
           pageSize: query.pageSize,
