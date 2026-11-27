@@ -5,6 +5,7 @@ import { createAuthRoutes, createRoleAuthRoutes } from "./src/routes/auth/auth.r
 import { createAuthService } from "./src/services/auth/auth.service.js";
 import { createUserRoutes } from "./src/routes/user.routes.js";
 import { bootstrapInitialAdmin } from "./src/config/bootstrap.js";
+import { normalizeLegacyInvoiceNumbers } from "./src/services/invoice/invoiceNumber.js";
 
 const env = loadEnvironment();
 const authEnv = loadAuthEnvironment();
@@ -15,6 +16,10 @@ async function start() {
     if (database) {
       await database.$queryRaw`SELECT 1`;
       await bootstrapInitialAdmin(database);
+      const norm = await normalizeLegacyInvoiceNumbers(database);
+      if (norm.updated > 0) {
+        console.info(`Normalized ${norm.updated} legacy invoice numbers (next sequence: ${norm.nextSequence})`);
+      }
     }
     const auth = database && authEnv
       ? createAuthService(database, {

@@ -4,6 +4,7 @@ import type { AuthService } from "../services/auth/auth.service.js";
 import { requireAuthentication } from "../middleware/auth.middleware.js";
 import { requireRole } from "../middleware/rbac.middleware.js";
 import { parseInput, idSchema } from "../middleware/validation.js";
+import { createInvoiceWithSequentialNumber } from "../services/invoice/invoiceNumber.js";
 import { createManagerRoutes } from "./admin/manager.routes.js";
 import { createAdminSellerRoutes } from "./admin/seller.routes.js";
 import { createManagerSellerRoutes } from "./manager/seller.routes.js";
@@ -100,9 +101,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
             : sale.quantity;
         const unitPaise =
           sale.unitPricePaise || (totalQty > 0 ? Math.round(sale.totalPaise / totalQty) : 0);
-        const invoiceNumber = `INV-${new Date(sale.confirmedAt || sale.createdAt).getFullYear()}-${sale.id.slice(0, 8).toUpperCase()}`;
-
-        const generatedSnapshot: InvoiceSnapshot = {
+        const buildFallbackSnapshot = (invoiceNumber: string): InvoiceSnapshot => ({
           invoiceNumber,
           saleId: sale.id,
           date: (sale.confirmedAt || sale.createdAt).toISOString(),
@@ -110,9 +109,11 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
             shopName: sale.customer?.shopName || "Customer Store",
             contactName: sale.customer?.contactName || "Customer",
             phone: sale.customer?.phone || "",
+            ...(sale.customer?.address ? { address: sale.customer.address } : {}),
             ...(sale.customer?.state ? { state: sale.customer.state } : {}),
             ...(sale.customer?.district ? { district: sale.customer.district } : {}),
             ...(sale.customer?.village ? { village: sale.customer.village } : {}),
+            ...(sale.customer?.pincode ? { pincode: sale.customer.pincode } : {}),
           },
           seller: {
             name: sale.seller?.name || "Seller",
@@ -129,24 +130,30 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
             totalPaise: li.totalPaise,
           })),
           paymentMode: sale.paymentMode,
-        };
+        });
 
-        invoice = await database.invoice.create({
-          data: {
-            saleId: sale.id,
-            number: invoiceNumber,
-            snapshot: generatedSnapshot as any,
-          },
-          include: {
-            sale: {
-              include: {
-                customer: true,
-                seller: { select: { id: true, name: true, phone: true, managerId: true } },
-                lineItems: { include: { product: { select: { name: true, sku: true } } } },
-              },
+        const fallbackInclude = {
+          sale: {
+            include: {
+              customer: true,
+              seller: { select: { id: true, name: true, phone: true, managerId: true } },
+              lineItems: { include: { product: { select: { name: true, sku: true } } } },
             },
           },
-        });
+        } as const;
+
+        const createFallback = (client: Parameters<typeof createInvoiceWithSequentialNumber>[0]) =>
+          createInvoiceWithSequentialNumber(client, {
+            saleId: sale.id,
+            buildSnapshot: (invoiceNumber) =>
+              buildFallbackSnapshot(invoiceNumber) as unknown as Record<string, unknown>,
+            include: fallbackInclude,
+          });
+
+        invoice =
+          typeof database.$transaction === "function"
+            ? await database.$transaction((tx) => createFallback(tx))
+            : await createFallback(database);
       }
 
       // Role authorization (dual-role Manager can access both team sales and their own sales)

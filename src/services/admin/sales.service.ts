@@ -3,6 +3,7 @@ import type { ListSalesInput, UpdateSaleInput } from "../../controller/sales.val
 import { HttpError } from "../../middleware/validation.js";
 import { getPeriodDateRange } from "../seller/sales.service.js";
 import { processInvoicePdf } from "../pdf.service.js";
+import { createInvoiceWithSequentialNumber } from "../invoice/invoiceNumber.js";
 import { getCachedBusinessSettings } from "../settings.cache.js";
 
 export function createAdminSalesService(database: PrismaClient) {
@@ -272,7 +273,6 @@ export function createAdminSalesService(database: PrismaClient) {
             );
           }
 
-          const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
           const snapshotLineItems = sale.lineItems.length > 0
             ? sale.lineItems.map((li) => ({
                 productName: li.product.name, productSku: li.product.sku,
@@ -282,27 +282,27 @@ export function createAdminSalesService(database: PrismaClient) {
               }))
             : undefined;
 
-          const invoiceSnapshot = {
-            invoiceNumber, saleId: sale.id, date: new Date().toISOString(),
-            company: {
-              name: resolvedSettings.companyName || "MASAKO ENTERPRISES PRIVATE LIMITED",
-              gst: resolvedSettings.companyGst, pan: resolvedSettings.companyPan, address: resolvedSettings.companyAddress,
-              phone: resolvedSettings.companyPhone, email: resolvedSettings.companyEmail, terms: resolvedSettings.invoiceTerms,
-            },
-            customer: {
-              shopName: targetCustomer.shopName, contactName: targetCustomer.contactName,
-              phone: targetCustomer.phone, state: targetCustomer.state,
-              district: targetCustomer.district, village: targetCustomer.village,
-            },
-            seller: { name: sellerUser?.name ?? sale.seller.name, phone: sellerUser?.phone ?? sale.seller.phone },
-            quantity: newQty, unitPricePaise: newUnitPricePaise, totalPaise: newTotalPaise,
-            lineItems: snapshotLineItems, paymentMode: newPaymentMode,
-          };
-
-          const [invoice, , updatedSale] = await Promise.all([
-            tx.invoice.create({
-              data: { saleId: sale.id, number: invoiceNumber, snapshot: invoiceSnapshot as Prisma.InputJsonValue },
+          const invoice = await createInvoiceWithSequentialNumber(tx, {
+            saleId: sale.id,
+            buildSnapshot: (invoiceNumber) => ({
+              invoiceNumber, saleId: sale.id, date: new Date().toISOString(),
+              company: {
+                name: resolvedSettings.companyName || "MASAKO ENTERPRISES PRIVATE LIMITED",
+                gst: resolvedSettings.companyGst, pan: resolvedSettings.companyPan, address: resolvedSettings.companyAddress,
+                phone: resolvedSettings.companyPhone, email: resolvedSettings.companyEmail, terms: resolvedSettings.invoiceTerms,
+              },
+              customer: {
+                shopName: targetCustomer.shopName, contactName: targetCustomer.contactName,
+                phone: targetCustomer.phone, state: targetCustomer.state,
+                district: targetCustomer.district, village: targetCustomer.village,
+              },
+              seller: { name: sellerUser?.name ?? sale.seller.name, phone: sellerUser?.phone ?? sale.seller.phone },
+              quantity: newQty, unitPricePaise: newUnitPricePaise, totalPaise: newTotalPaise,
+              lineItems: snapshotLineItems, paymentMode: newPaymentMode,
             }),
+          });
+
+          const [, updatedSale] = await Promise.all([
             (newPaymentMode === "CASH" || newPaymentMode === "BANK")
               ? tx.paymentRecord.create({
                   data: { saleId: sale.id, collectorId: sale.sellerId, mode: newPaymentMode, amountPaise: newTotalPaise },
