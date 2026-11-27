@@ -24,5 +24,11 @@ export const inventoryReportQuerySchema = z.strictObject({
   format: z.enum(["json", "csv", "xlsx"]).default("json"),
 });
 
+export const sellerReportQuerySchema = z.strictObject({
+  from: z.string().datetime().or(z.string().date()).optional(),
+  to: z.string().datetime().or(z.string().date()).optional(),
+});
+
 export type SalesReportQueryInput = z.infer<typeof salesReportQuerySchema>;
 export type InventoryReportQueryInput = z.infer<typeof inventoryReportQuerySchema>;
+export type SellerReportQueryInput = z.infer<typeof sellerReportQuerySchema>;

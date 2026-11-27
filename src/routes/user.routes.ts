@@ -29,6 +29,7 @@ import { createAdminDashboardRoutes } from "./admin/dashboard.routes.js";
 import { createAdminInvoiceRoutes } from "./admin/invoice.routes.js";
 import { createAdminPermissionRoutes } from "./admin/permission.routes.js";
 import { createAdminReportRoutes } from "./admin/report.routes.js";
+import { createSellerReportRoutes } from "./seller/report.routes.js";
 import { createSellerProfileRoutes } from "./seller/profile.routes.js";
 import { createSellerShiftRoutes } from "./seller/shift.routes.js";
 import { createAdminShiftRoutes } from "./admin/shift.routes.js";
@@ -239,6 +240,7 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
   router.use("/seller/dashboard", authenticate, requireRole("SELLER", "MANAGER"), createSellerDashboardRoutes(database));
   router.use("/seller/profile", authenticate, requireRole("SELLER", "MANAGER"), createSellerProfileRoutes(database));
   router.use("/seller/shifts", authenticate, requireRole("SELLER", "MANAGER"), createSellerShiftRoutes(database));
+  router.use("/seller/reports", authenticate, requireRole("SELLER", "MANAGER"), createSellerReportRoutes(database));
 
   return router;
 }
