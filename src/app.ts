@@ -121,7 +121,11 @@ export function createApp({
     response.json({
       success: true,
       message: "API is running",
-      data: { status: "ok", database: checkDatabase ? "configured" : "not_configured" },
+      data: {
+        status: "ok",
+        database: checkDatabase ? "configured" : "not_configured",
+        revision: "2026-11-27-invoice-v2",
+      },
     });
   });
   app.get("/api/v1/ready", async (_request, response) => {

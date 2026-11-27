@@ -55,6 +55,7 @@ export function createAdminInvoiceService(database: PrismaClient) {
             include: {
               customer: true,
               seller: { select: { id: true, name: true, phone: true, email: true } },
+              lineItems: { include: { product: { select: { name: true, sku: true } } } },
               payments: true,
             },
           },

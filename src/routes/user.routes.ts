@@ -34,7 +34,7 @@ import { createGeoRoutes } from "./geo.routes.js";
 import { createAdminProductRoutes } from "./admin/product.routes.js";
 import { createProductListRoutes } from "./product.routes.js";
 import { createRealtimeRoutes } from "./realtime.routes.js";
-import { generateInvoicePdfBuffer, type InvoiceSnapshot } from "../services/pdf.service.js";
+import { enrichInvoiceSnapshotFromRecord, generateInvoicePdfBuffer, type InvoiceSnapshot } from "../services/pdf.service.js";
 import { getCachedBusinessSettings } from "../services/settings.cache.js";
 
 export function createUserRoutes(database: PrismaClient, auth: AuthService) {
@@ -163,58 +163,14 @@ export function createUserRoutes(database: PrismaClient, auth: AuthService) {
         return;
       }
 
-      let snapshot = invoice.snapshot as unknown as InvoiceSnapshot;
-      if (!snapshot || !snapshot.invoiceNumber) {
-        snapshot = {
-          invoiceNumber: invoice.number,
-          saleId: invoice.saleId,
-          date: invoice.createdAt.toISOString(),
-          customer: {
-            shopName: invoice.sale?.customer?.shopName || "Customer Store",
-            contactName: invoice.sale?.customer?.contactName || "Customer",
-            phone: invoice.sale?.customer?.phone || "",
-            ...(invoice.sale?.customer?.state ? { state: invoice.sale.customer.state } : {}),
-            ...(invoice.sale?.customer?.district ? { district: invoice.sale.customer.district } : {}),
-            ...(invoice.sale?.customer?.village ? { village: invoice.sale.customer.village } : {}),
-          },
-          seller: {
-            name: invoice.sale?.seller?.name || "Seller",
-            phone: invoice.sale?.seller?.phone || "",
-          },
-          quantity: invoice.sale?.quantity || 0,
-          unitPricePaise: invoice.sale?.unitPricePaise || 0,
-          totalPaise: invoice.sale?.totalPaise || 0,
-          lineItems: invoice.sale?.lineItems?.map((li) => ({
-            productName: li.product?.name || "FemmeFlo",
-            productSku: li.product?.sku ?? null,
-            quantity: li.quantity,
-            unitPricePaise: li.unitPricePaise,
-            totalPaise: li.totalPaise,
-          })),
-          paymentMode: invoice.sale?.paymentMode || "CASH",
-        };
-      }
-
-      // Real-time update: always overlay latest BusinessSettings configured in admin
+      // Overlay live customer address details & BusinessSettings configured in admin
       const s = await getCachedBusinessSettings(database);
-      if (s) {
-        snapshot = {
-          ...snapshot,
-          company: {
-            name: s.companyName || snapshot.company?.name || "MASAKO ENTERPRISES PRIVATE LIMITED",
-            gst: s.companyGst || snapshot.company?.gst,
-            pan: s.companyPan || snapshot.company?.pan,
-            address: s.companyAddress || snapshot.company?.address,
-            phone: s.companyPhone || snapshot.company?.phone,
-            email: s.companyEmail || snapshot.company?.email,
-            terms: s.invoiceTerms || snapshot.company?.terms,
-          },
-        };
-      }
+      const snapshot = enrichInvoiceSnapshotFromRecord(invoice, s);
       const pdfBuffer = await generateInvoicePdfBuffer(snapshot);
       const isDownload = request.query["download"] === "true";
 
       response.setHeader("Content-Type", "application/pdf");
+      response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
       response.setHeader(
         "Content-Disposition",
         `${isDownload ? "attachment" : "inline"}; filename="Invoice-${invoice.number}.pdf"`
