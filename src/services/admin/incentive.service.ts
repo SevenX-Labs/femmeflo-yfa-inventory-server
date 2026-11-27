@@ -3,6 +3,7 @@ import type {
   UpdateIncentiveSettingsInput,
   UpdateUserRateInput,
   UpdateUserTargetInput,
+  BulkUpdateUserTargetInput,
   CreateAdjustmentInput,
   CreatePayoutInput,
   ListIncentivesQuery,
@@ -27,6 +28,128 @@ import {
 export function createAdminIncentiveService(database: PrismaClient) {
   async function getOrCreateSettings() {
     return getCachedBusinessSettings(database);
+  }
+
+  async function applySingleUserTarget(
+    adminId: string,
+    userId: string,
+    input: UpdateUserTargetInput,
+    settings: Awaited<ReturnType<typeof getOrCreateSettings>>,
+    now: Date
+  ) {
+    const user = await database.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, role: true, incentiveRatePaise: true },
+    });
+
+    if (!user) {
+      throw new HttpError(404, "Employee not found");
+    }
+
+    if (user.role !== "SELLER" && user.role !== "MANAGER") {
+      throw new HttpError(400, "Sales target can only be assigned to Sellers or Managers");
+    }
+
+    const normalizedPackets =
+      input.salesTargetPackets !== null && input.salesTargetPackets > 0
+        ? Math.round(input.salesTargetPackets)
+        : null;
+    const normalizedBonus =
+      normalizedPackets !== null &&
+      typeof input.targetBonusPaise === "number" &&
+      input.targetBonusPaise > 0
+        ? Math.round(input.targetBonusPaise)
+        : null;
+    const effectiveRatePaise =
+      user.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
+
+    return database.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: {
+          salesTargetPackets: normalizedPackets,
+          salesTargetPeriod: input.salesTargetPeriod,
+          targetBonusPaise: normalizedBonus,
+        },
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          salesTargetPackets: true,
+          salesTargetPeriod: true,
+          targetBonusPaise: true,
+        },
+      });
+
+      const [sales, adjustments, payouts] = await Promise.all([
+        tx.sale.findMany({
+          where: { sellerId: userId, status: { in: ["CONFIRMED", "COMPLETED"] } },
+          select: {
+            id: true,
+            quantity: true,
+            totalPaise: true,
+            incentiveRatePaise: true,
+            incentiveAmountPaise: true,
+            confirmedAt: true,
+            createdAt: true,
+          },
+        }),
+        tx.incentiveAdjustment.findMany({
+          where: { userId },
+          orderBy: { adjustmentDate: "desc" },
+          select: {
+            id: true,
+            type: true,
+            amountPaise: true,
+            reason: true,
+            adjustmentDate: true,
+            createdAt: true,
+          },
+        }),
+        tx.incentivePayout.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            amountPaise: true,
+            paymentDate: true,
+            paymentMethod: true,
+            referenceId: true,
+            remarks: true,
+            createdAt: true,
+            allocations: true,
+          },
+        }),
+      ]);
+
+      const { progress, adjustments: syncedAdjustments } = await syncTargetBonusInTransaction(tx, {
+        userId,
+        salesTargetPackets: updatedUser.salesTargetPackets,
+        salesTargetPeriod: updatedUser.salesTargetPeriod,
+        targetBonusPaise: updatedUser.targetBonusPaise,
+        confirmedSales: sales,
+        adjustments,
+        payouts,
+        effectiveRatePaise,
+        actorUserId: adminId,
+        allowModifyExistingForActivePeriod: true,
+        referenceDate: now,
+      });
+
+      const summary = calculateUserIncentiveSummary(
+        userId,
+        sales,
+        syncedAdjustments,
+        payouts,
+        now,
+        effectiveRatePaise
+      );
+
+      return {
+        user: updatedUser,
+        targetProgress: progress,
+        summary,
+      };
+    });
   }
 
   return {
@@ -531,123 +654,41 @@ export function createAdminIncentiveService(database: PrismaClient) {
     },
 
     updateUserTarget: async (adminId: string, userId: string, input: UpdateUserTargetInput) => {
-      const [user, settings] = await Promise.all([
-        database.user.findUnique({
-          where: { id: userId },
-          select: { id: true, name: true, role: true, incentiveRatePaise: true },
-        }),
+      const settings = await getOrCreateSettings();
+      return applySingleUserTarget(adminId, userId, input, settings, new Date());
+    },
+
+    bulkUpdateUserTargets: async (adminId: string, input: BulkUpdateUserTargetInput) => {
+      const uniqueIds = Array.from(new Set(input.userIds));
+      const [settings, existingUsers] = await Promise.all([
         getOrCreateSettings(),
+        database.user.findMany({
+          where: { id: { in: uniqueIds }, role: { in: ["SELLER", "MANAGER"] } },
+          select: { id: true },
+        }),
       ]);
 
-      if (!user) {
-        throw new HttpError(404, "Employee not found");
+      const validIds = existingUsers.map((u) => u.id);
+      if (validIds.length === 0) {
+        throw new HttpError(404, "No eligible Sellers or Managers found for target update");
       }
 
-      if (user.role !== "SELLER" && user.role !== "MANAGER") {
-        throw new HttpError(400, "Sales target can only be assigned to Sellers or Managers");
-      }
-
-      const normalizedPackets =
-        input.salesTargetPackets !== null && input.salesTargetPackets > 0
-          ? Math.round(input.salesTargetPackets)
-          : null;
-      const normalizedBonus =
-        normalizedPackets !== null &&
-        typeof input.targetBonusPaise === "number" &&
-        input.targetBonusPaise > 0
-          ? Math.round(input.targetBonusPaise)
-          : null;
-      const effectiveRatePaise =
-        user.incentiveRatePaise ?? settings.incentiveRatePaise ?? DEFAULT_INCENTIVE_RATE_PAISE;
       const now = new Date();
+      const targetInput: UpdateUserTargetInput = {
+        salesTargetPackets: input.salesTargetPackets,
+        salesTargetPeriod: input.salesTargetPeriod,
+        targetBonusPaise: input.targetBonusPaise,
+      };
 
-      return database.$transaction(async (tx) => {
-        const updatedUser = await tx.user.update({
-          where: { id: userId },
-          data: {
-            salesTargetPackets: normalizedPackets,
-            salesTargetPeriod: input.salesTargetPeriod,
-            targetBonusPaise: normalizedBonus,
-          },
-          select: {
-            id: true,
-            name: true,
-            role: true,
-            salesTargetPackets: true,
-            salesTargetPeriod: true,
-            targetBonusPaise: true,
-          },
-        });
+      const updatedItems = [];
+      for (const uid of validIds) {
+        updatedItems.push(await applySingleUserTarget(adminId, uid, targetInput, settings, now));
+      }
 
-        const [sales, adjustments, payouts] = await Promise.all([
-          tx.sale.findMany({
-            where: { sellerId: userId, status: { in: ["CONFIRMED", "COMPLETED"] } },
-            select: {
-              id: true,
-              quantity: true,
-              totalPaise: true,
-              incentiveRatePaise: true,
-              incentiveAmountPaise: true,
-              confirmedAt: true,
-              createdAt: true,
-            },
-          }),
-          tx.incentiveAdjustment.findMany({
-            where: { userId },
-            orderBy: { adjustmentDate: "desc" },
-            select: {
-              id: true,
-              type: true,
-              amountPaise: true,
-              reason: true,
-              adjustmentDate: true,
-              createdAt: true,
-            },
-          }),
-          tx.incentivePayout.findMany({
-            where: { userId },
-            select: {
-              id: true,
-              amountPaise: true,
-              paymentDate: true,
-              paymentMethod: true,
-              referenceId: true,
-              remarks: true,
-              createdAt: true,
-              allocations: true,
-            },
-          }),
-        ]);
-
-        const { progress, adjustments: syncedAdjustments } = await syncTargetBonusInTransaction(tx, {
-          userId,
-          salesTargetPackets: updatedUser.salesTargetPackets,
-          salesTargetPeriod: updatedUser.salesTargetPeriod,
-          targetBonusPaise: updatedUser.targetBonusPaise,
-          confirmedSales: sales,
-          adjustments,
-          payouts,
-          effectiveRatePaise,
-          actorUserId: adminId,
-          allowModifyExistingForActivePeriod: true,
-          referenceDate: now,
-        });
-
-        const summary = calculateUserIncentiveSummary(
-          userId,
-          sales,
-          syncedAdjustments,
-          payouts,
-          now,
-          effectiveRatePaise
-        );
-
-        return {
-          user: updatedUser,
-          targetProgress: progress,
-          summary,
-        };
-      });
+      return {
+        updatedCount: updatedItems.length,
+        items: updatedItems,
+      };
     },
 
     createAdjustment: async (adminId: string, userId: string, input: CreateAdjustmentInput) => {

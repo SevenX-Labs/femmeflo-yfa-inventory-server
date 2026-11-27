@@ -8,7 +8,10 @@ import {
   getTargetPeriodKey,
 } from "../../src/services/incentive/incentive.calculator.js";
 import { buildTargetBonusReason } from "../../src/services/incentive/target-bonus.service.js";
-import { updateUserTargetSchema } from "../../src/controller/incentive.validation.js";
+import {
+  updateUserTargetSchema,
+  bulkUpdateUserTargetSchema,
+} from "../../src/controller/incentive.validation.js";
 import { updateUserSchema, createSellerSchema, createManagerSchema } from "../../src/controller/user.validation.js";
 
 test("computeTargetProgress calculates MONTHLY packet progress, ₹ revenue, and bonus unlock in IST", () => {
@@ -153,4 +156,34 @@ test("server startup ensures target/remittance DDL before bootstrapping admin us
     ddlIdx < bootstrapIdx,
     "ensureSaleRemittanceSchema must run before bootstrapInitialAdmin so new User columns exist before querying"
   );
+});
+
+test("bulkUpdateUserTargetSchema validates employee list, target, and route wiring", () => {
+  const valid = bulkUpdateUserTargetSchema.safeParse({
+    userIds: [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    ],
+    salesTargetPackets: 250,
+    salesTargetPeriod: "MONTHLY",
+    targetBonusPaise: 50_000,
+  });
+  assert.equal(valid.success, true);
+
+  const emptyUsers = bulkUpdateUserTargetSchema.safeParse({
+    userIds: [],
+    salesTargetPackets: 100,
+  });
+  assert.equal(emptyUsers.success, false);
+
+  const routesSrc = fs.readFileSync(
+    path.resolve(process.cwd(), "src/routes/admin/incentive.routes.ts"),
+    "utf8"
+  );
+  assert.ok(routesSrc.includes("/users/bulk-target"));
+  const serviceSrc = fs.readFileSync(
+    path.resolve(process.cwd(), "src/services/admin/incentive.service.ts"),
+    "utf8"
+  );
+  assert.ok(serviceSrc.includes("bulkUpdateUserTargets:"));
 });

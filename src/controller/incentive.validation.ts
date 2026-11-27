@@ -43,6 +43,29 @@ export const updateUserTargetSchema = z.strictObject({
 
 export type UpdateUserTargetInput = z.infer<typeof updateUserTargetSchema>;
 
+export const bulkUpdateUserTargetSchema = z.strictObject({
+  userIds: z
+    .array(z.string().uuid("Invalid employee ID"))
+    .min(1, "Select at least one employee")
+    .max(500, "Cannot update more than 500 employees at once"),
+  salesTargetPackets: z.coerce
+    .number()
+    .int("Target packets must be a whole number")
+    .positive("Target packets must be greater than zero")
+    .max(1_000_000, "Target packets cannot exceed 1,000,000")
+    .nullable(),
+  salesTargetPeriod: z.enum(["DAILY", "MONTHLY"]).default("MONTHLY"),
+  targetBonusPaise: z.coerce
+    .number()
+    .int("Bonus amount must be a whole number in paise")
+    .min(0, "Bonus amount cannot be negative")
+    .max(100_000_000, "Bonus amount is too large")
+    .nullable()
+    .optional(),
+});
+
+export type BulkUpdateUserTargetInput = z.infer<typeof bulkUpdateUserTargetSchema>;
+
 export const createAdjustmentSchema = z.object({
   type: z.enum(["ADD", "DEDUCT"]),
   amountPaise: z.coerce.number().int().positive("Adjustment amount must be greater than zero"),

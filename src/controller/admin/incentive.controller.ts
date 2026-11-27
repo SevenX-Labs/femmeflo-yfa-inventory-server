@@ -5,6 +5,7 @@ import {
   updateIncentiveSettingsSchema,
   updateUserRateSchema,
   updateUserTargetSchema,
+  bulkUpdateUserTargetSchema,
   createAdjustmentSchema,
   createPayoutSchema,
   listIncentivesQuerySchema,
@@ -56,6 +57,20 @@ export function createAdminIncentiveController(service: AdminIncentiveService) {
           input.salesTargetPackets !== null
             ? "Sales target updated successfully"
             : "Sales target removed",
+        data,
+      });
+    },
+
+    bulkUpdateUserTarget: async (request: Request, response: Response) => {
+      const admin = response.locals.authUser as PublicUser;
+      const input = parseInput(bulkUpdateUserTargetSchema, request.body);
+      const data = await service.bulkUpdateUserTargets(admin.id, input);
+      response.json({
+        success: true,
+        message:
+          input.salesTargetPackets !== null
+            ? `Sales target assigned to ${data.updatedCount} employee(s)`
+            : `Sales target removed for ${data.updatedCount} employee(s)`,
         data,
       });
     },
